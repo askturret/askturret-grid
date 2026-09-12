@@ -1,6 +1,6 @@
 {
   "name": "@askturret/grid",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "High-performance React data grid with Rust/WASM. Server-side performance, zero server required.",
   "type": "module",
   "main": "./dist/index.js",
