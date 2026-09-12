@@ -590,9 +590,7 @@ describe('DataGrid', () => {
       expect(rafSpy).toHaveBeenCalled();
 
       // Update data to trigger flash - but flash should be disabled by disableFlash
-      const newData = testData.map((row) =>
-        row.id === '1' ? { ...row, value: 999 } : row
-      );
+      const newData = testData.map((row) => (row.id === '1' ? { ...row, value: 999 } : row));
       rerender(
         <DataGrid
           data={newData}
