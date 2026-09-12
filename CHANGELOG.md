@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-12
+
+### Fixed
+- Corrected `repository`/`bugs` URLs in package.json (were pointing to a stale org), which was blocking `npm publish --provenance` from verifying against the actual GitHub Actions provenance (#25)
+
 ## [0.2.0] - 2026-09-12
 
 ### Added
@@ -84,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TypeScript support with full type inference
 - Dark theme with CSS variables
 
+[0.2.1]: https://github.com/askturret/askturret-grid/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/askturret/askturret-grid/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/alprimak/askturret-grid/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/alprimak/askturret-grid/compare/v0.1.4...v0.1.5
