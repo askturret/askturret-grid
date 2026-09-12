@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 export interface AdaptiveFlashResult {
   disableFlash: boolean;
@@ -13,9 +13,12 @@ export interface AdaptiveFlashResult {
  * - Disable: FPS < 55 for 2 consecutive seconds
  * - Re-enable: FPS >= 58 for 3 consecutive seconds
  *
+ * @param enabled - When false, skips FPS monitoring (no rAF loop, no setState).
+ *                  Returns a stable { disableFlash: false, fps: 0 } with zero overhead.
+ *                  Default: true
  * @returns {AdaptiveFlashResult} { disableFlash, fps }
  */
-export function useAdaptiveFlash(): AdaptiveFlashResult {
+export function useAdaptiveFlash(enabled: boolean = true): AdaptiveFlashResult {
   const [disableFlash, setDisableFlash] = useState(false);
   const [fps, setFps] = useState(60);
   const frameCountRef = useRef(0);
@@ -23,7 +26,12 @@ export function useAdaptiveFlash(): AdaptiveFlashResult {
   const consecutiveCountRef = useRef(0);
   const rafRef = useRef<number>();
 
+  // Stable memoized result when disabled (zero overhead)
+  const disabledResult = useMemo(() => ({ disableFlash: false, fps: 0 }), []);
+
   useEffect(() => {
+    // Early return when disabled - no rAF loop, no overhead
+    if (!enabled) return;
     const measureFps = () => {
       frameCountRef.current++;
       const now = performance.now();
@@ -62,7 +70,10 @@ export function useAdaptiveFlash(): AdaptiveFlashResult {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [disableFlash]);
+  }, [disableFlash, enabled]);
+
+  // Return stable memoized result when disabled
+  if (!enabled) return disabledResult;
 
   return { disableFlash, fps };
 }

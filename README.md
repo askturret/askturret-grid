@@ -199,6 +199,7 @@ interface DataGridProps<T> {
   virtualize?: boolean | 'auto';     // Force virtualization (default: 'auto')
   rowHeight?: number;                // Custom row height in px
   disableFlash?: boolean;            // Disable flash highlighting
+  adaptiveFlash?: boolean;           // Auto-disable flash when FPS drops
   onRowClick?: (row: T) => void;     // Row click handler
   emptyMessage?: string;             // Message when no data
   className?: string;                // Container class
@@ -227,6 +228,65 @@ interface ColumnDef<T> {
   cellClass?: (value: unknown, row: T) => string;
 }
 ```
+
+## Adaptive Flash Throttling
+
+Flash highlighting (`flashOnChange` on column definitions) is unconditional by default — it fires on every numeric value change. For high-frequency data (trading, IoT sensors), this can impact frame rate when many cells flash simultaneously.
+
+`@askturret/grid` provides automatic FPS-adaptive throttling to prevent performance degradation:
+
+### Option A: One-line opt-in (recommended)
+
+```tsx
+<DataGrid
+  data={trades}
+  columns={[
+    { field: 'price', header: 'Price', flashOnChange: true },
+    { field: 'size', header: 'Size', flashOnChange: true }
+  ]}
+  rowKey="id"
+  adaptiveFlash={true}  // ← Auto-disables flash when FPS drops below 55
+/>
+```
+
+When `adaptiveFlash={true}`, the grid runs an internal FPS monitor. If frame rate drops below ~55fps for 2+ consecutive seconds, flash highlighting is automatically suppressed. It re-enables when FPS recovers to ≥58fps for 3+ seconds (hysteresis prevents flapping).
+
+**Default:** `false` — no FPS monitoring, no rAF loop, zero overhead. This preserves predictable behavior for existing consumers.
+
+**Precedence:** Explicit `disableFlash={true}` always wins. `adaptiveFlash` only controls the *automatic backoff* path.
+
+### Option B: Manual wiring (for advanced control)
+
+For custom FPS thresholds, displaying the current FPS in your UI, or sharing an FPS meter across your app:
+
+```tsx
+import { DataGrid, useAdaptiveFlash } from '@askturret/grid';
+
+function TradingView() {
+  const { disableFlash, fps } = useAdaptiveFlash(true);
+
+  return (
+    <>
+      <div className="fps-indicator">FPS: {fps}</div>
+      <DataGrid
+        data={trades}
+        columns={[
+          { field: 'price', header: 'Price', flashOnChange: true },
+          { field: 'size', header: 'Size', flashOnChange: true }
+        ]}
+        rowKey="id"
+        disableFlash={disableFlash}  // ← Wire manual control
+      />
+    </>
+  );
+}
+```
+
+The `useAdaptiveFlash()` hook returns:
+- `disableFlash: boolean` — Whether flash should be suppressed (pass to `DataGrid`)
+- `fps: number` — Current frame rate (0 when disabled)
+
+**See also:** [`flashOnChange` column definition](#configuration), [`disableFlash` prop](#configuration)
 
 ## useGridStore API
 
