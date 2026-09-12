@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { filterAndSort, isWasmAvailable, type SortDirection as WasmSortDirection } from './wasm';
 import { GridCore } from './wasm/GridCore';
+import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
 
 /**
  * Column definition for the DataGrid
@@ -21,7 +22,12 @@ export interface ColumnDef<T> {
   formatter?: (value: unknown, row: T) => string | React.ReactNode;
   /** Dynamic cell CSS class */
   cellClass?: (value: unknown, row: T) => string;
-  /** Enable flash highlighting on numeric value changes */
+  /**
+   * Enable flash highlighting on numeric value changes. Flash highlighting
+   * is unconditional by default (fires at every value change). For automatic
+   * FPS-adaptive throttling, set `adaptiveFlash` on `DataGrid`, or call
+   * `useAdaptiveFlash()` manually and wire it into `disableFlash`.
+   */
   flashOnChange?: boolean;
   /** Disable resizing for this column (default: true when grid resizable) */
   resizable?: boolean;
@@ -61,8 +67,31 @@ export interface DataGridProps<T> {
   virtualize?: boolean | 'auto';
   /** Row height in pixels for virtualization */
   rowHeight?: number;
-  /** Disable flash highlighting */
+  /**
+   * Disable flash highlighting. For automatic FPS-adaptive throttling
+   * instead of a hard on/off, see `adaptiveFlash`.
+   */
   disableFlash?: boolean;
+  /**
+   * When true, DataGrid runs an internal FPS monitor (via `useAdaptiveFlash`)
+   * and automatically suppresses flash highlighting when frame rate drops
+   * below ~55fps for 2+ consecutive seconds, then re-enables it when frame
+   * rate recovers to >=58fps for 3+ seconds (hysteresis).
+   *
+   * Default false — the grid does NOT monitor FPS on its own. This preserves
+   * predictable, zero-overhead behavior: no rAF loop, no per-second setState,
+   * no re-renders you did not ask for.
+   *
+   * Precedence: an explicit `disableFlash={true}` always wins. `adaptiveFlash`
+   * only enables the *automatic backoff* path; it never overrides an explicit
+   * consumer opt-out.
+   *
+   * For finer control (custom FPS thresholds, displaying the current FPS in
+   * your own UI, sharing an FPS meter with the rest of your app), do NOT set
+   * `adaptiveFlash`. Call `useAdaptiveFlash()` yourself and pass its
+   * `disableFlash` result into this component's `disableFlash` prop.
+   */
+  adaptiveFlash?: boolean;
   /** Callback when a row is clicked */
   onRowClick?: (row: T) => void;
   /**
@@ -147,6 +176,7 @@ export function DataGrid<T extends object>({
   virtualize = 'auto',
   rowHeight: rowHeightProp,
   disableFlash = false,
+  adaptiveFlash = false,
   onRowClick,
   useWasmCore = 'auto',
   // Column resizing
@@ -177,6 +207,9 @@ export function DataGrid<T extends object>({
   // Leaving rows state for row-exit lifecycle
   const leavingRowsRef = useRef<Map<string, { row: T; snapshotIndex: number; expiry: number }>>(new Map());
   const [leavingRowsVersion, setLeavingRowsVersion] = useState(0);
+
+  // Adaptive flash monitoring (when enabled)
+  const { disableFlash: adaptiveDisable } = useAdaptiveFlash(adaptiveFlash);
 
   // Column resize state (uncontrolled mode)
   const [internalWidths, setInternalWidths] = useState<Record<string, number>>({});
@@ -355,7 +388,8 @@ export function DataGrid<T extends object>({
     return data.length > VIRTUALIZATION_THRESHOLD;
   }, [virtualize, data.length]);
 
-  const enableFlash = !disableFlash;
+  // Flash enabled when not explicitly disabled AND not adaptively disabled
+  const enableFlash = !disableFlash && !adaptiveDisable;
 
   // Determine if we should use WASM GridCore
   const shouldUseWasmCore = useMemo(() => {
