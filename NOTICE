@@ -1,0 +1,10 @@
+AskTurret Grid
+Copyright 2024 AskTurret
+
+This product includes software developed at AskTurret (https://askturret.com).
+
+This software contains code derived from or inspired by the following projects:
+
+- @tanstack/react-virtual (MIT License)
+  Copyright (c) 2021 Tanner Linsley
+  https://github.com/TanStack/virtual

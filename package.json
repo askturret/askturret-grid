@@ -68,7 +68,7 @@
     "webassembly",
     "performance"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "AskTurret",
   "repository": {
     "type": "git",
