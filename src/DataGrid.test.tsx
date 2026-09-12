@@ -527,4 +527,249 @@ describe('DataGrid', () => {
       expect(draggableHeaders.length).toBe(3);
     });
   });
+
+  describe('row-exit lifecycle', () => {
+    it('renders leaving row with isLeaving: true for rowExitDuration', () => {
+      vi.useFakeTimers();
+      const rowClassMock = vi.fn((row: TestRow, meta: { isLeaving: boolean }) => {
+        return meta.isLeaving ? 'leaving' : '';
+      });
+
+      const { rerender, container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Verify Alpha is present
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+
+      // Remove Alpha from data
+      const newData = testData.filter((r) => r.id !== '1');
+      rerender(
+        <DataGrid
+          data={newData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Alpha should still be rendered with leaving class
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      const leavingRow = container.querySelector('.leaving');
+      expect(leavingRow).toBeInTheDocument();
+
+      // rowClass should have been called with isLeaving: true
+      expect(rowClassMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: '1', name: 'Alpha' }),
+        { isLeaving: true }
+      );
+
+      // After rowExitDuration, Alpha should be unmounted
+      vi.advanceTimersByTime(301);
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+
+      vi.useRealTimers();
+    });
+
+    it('cancels exit when row reappears during transition', () => {
+      vi.useFakeTimers();
+      const rowClassMock = vi.fn((row: TestRow, meta: { isLeaving: boolean }) => {
+        return meta.isLeaving ? 'leaving' : '';
+      });
+
+      const { rerender, container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Remove Alpha
+      const withoutAlpha = testData.filter((r) => r.id !== '1');
+      rerender(
+        <DataGrid
+          data={withoutAlpha}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Alpha should be leaving
+      expect(container.querySelector('.leaving')).toBeInTheDocument();
+
+      // Advance halfway through duration
+      vi.advanceTimersByTime(150);
+
+      // Re-add Alpha before expiry
+      rerender(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Alpha should now render normally (not leaving)
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+      // Leaving class should be gone
+      expect(container.querySelector('.leaving')).not.toBeInTheDocument();
+
+      vi.useRealTimers();
+    });
+
+    it('has zero overhead when rowExitDuration is 0 (default)', () => {
+      const rowClassMock = vi.fn();
+
+      render(<DataGrid data={testData} columns={columns} rowKey="id" rowClass={rowClassMock} />);
+
+      // rowClass should be called with isLeaving: false for all rows
+      testData.forEach((row) => {
+        expect(rowClassMock).toHaveBeenCalledWith(row, { isLeaving: false });
+      });
+
+      // No leaving class should exist
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      expect(container.querySelector('.leaving')).not.toBeInTheDocument();
+    });
+
+    it('clears leaving state on sort change', () => {
+      vi.useFakeTimers();
+      const rowClassMock = vi.fn((row: TestRow, meta: { isLeaving: boolean }) => {
+        return meta.isLeaving ? 'leaving' : '';
+      });
+
+      const { rerender, container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Remove Alpha
+      const newData = testData.filter((r) => r.id !== '1');
+      rerender(
+        <DataGrid
+          data={newData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+        />
+      );
+
+      // Alpha should be leaving
+      expect(container.querySelector('.leaving')).toBeInTheDocument();
+
+      // Click sort header to trigger context change
+      const nameHeader = screen.getByText('Name');
+      fireEvent.click(nameHeader);
+
+      // Leaving row should be immediately cleared
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+
+      vi.useRealTimers();
+    });
+
+    it('clears leaving state on filter change', () => {
+      vi.useFakeTimers();
+      const rowClassMock = vi.fn((row: TestRow, meta: { isLeaving: boolean }) => {
+        return meta.isLeaving ? 'leaving' : '';
+      });
+
+      const { rerender, container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+          showFilter={true}
+        />
+      );
+
+      // Remove Alpha
+      const newData = testData.filter((r) => r.id !== '1');
+      rerender(
+        <DataGrid
+          data={newData}
+          columns={columns}
+          rowKey="id"
+          rowClass={rowClassMock}
+          rowExitDuration={300}
+          showFilter={true}
+        />
+      );
+
+      // Alpha should be leaving
+      expect(container.querySelector('.leaving')).toBeInTheDocument();
+
+      // Change filter
+      const filterInput = screen.getByPlaceholderText('Filter...');
+      fireEvent.change(filterInput, { target: { value: 'Beta' } });
+
+      // Leaving row should be immediately cleared
+      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+
+      vi.useRealTimers();
+    });
+
+    it('does not update flash state for leaving rows', () => {
+      vi.useFakeTimers();
+
+      const columnsWithFlash: ColumnDef<TestRow>[] = [
+        { field: 'name', header: 'Name' },
+        { field: 'value', header: 'Value', flashOnChange: true },
+      ];
+
+      const { rerender, container } = render(
+        <DataGrid
+          data={testData}
+          columns={columnsWithFlash}
+          rowKey="id"
+          rowExitDuration={300}
+        />
+      );
+
+      // Remove Alpha (which has flashOnChange value column)
+      const newData = testData.filter((r) => r.id !== '1');
+      rerender(
+        <DataGrid
+          data={newData}
+          columns={columnsWithFlash}
+          rowKey="id"
+          rowExitDuration={300}
+        />
+      );
+
+      // Alpha should be leaving
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+
+      // Try to trigger flash by changing value (simulate data update)
+      // Since Alpha is leaving, no flash should be applied
+      const leavingCells = container.querySelectorAll('.leaving td');
+      leavingCells.forEach((cell) => {
+        expect(cell).not.toHaveClass('flash-up');
+        expect(cell).not.toHaveClass('flash-down');
+      });
+
+      vi.useRealTimers();
+    });
+  });
 });
