@@ -437,10 +437,77 @@ export function DataGrid<T extends object>({
     [rowKey]
   );
 
+  // sortedData for non-virtualized mode (still needed for table rendering)
+  // For virtualized mode, we use getRowAtIndex directly
+  const sortedData = useMemo(() => {
+    // For WASM mode with virtualization, return empty - we'll use getRowAtIndex
+    if (wasmCoreReady && wasmIndices && shouldVirtualize) {
+      // Return a sparse proxy array that uses cached indices
+      // This avoids creating 10k item array on every render
+      return [] as T[];
+    }
+
+    const fieldsToSearch = filterFields || columns.map((c) => c.field as keyof T);
+    const hasFilter = filter.trim().length > 0;
+    const hasSort = sort.field && sort.direction;
+
+    // Use WASM indices if available (non-virtualized mode)
+    if (wasmCoreReady && wasmIndices) {
+      return wasmIndices.map((i) => data[i]);
+    }
+
+    // Fallback: Try old WASM filterAndSort for medium datasets
+    if (isWasmAvailable() && data.length > 1000 && (hasFilter || hasSort)) {
+      const filterColumns = fieldsToSearch.map((field) =>
+        data.map((row) => getNestedValue(row, String(field)))
+      );
+      const sortValues = sort.field
+        ? data.map((row) => getNestedValue(row, sort.field!))
+        : data.map((_, i) => i);
+      const direction: WasmSortDirection = sort.direction === 'desc' ? 'desc' : 'asc';
+      const indices = filterAndSort(sortValues, filterColumns, filter, direction);
+      return indices.map((i) => data[i]);
+    }
+
+    // JavaScript fallback
+    let result = data;
+
+    if (hasFilter) {
+      const lowerFilter = filter.toLowerCase();
+      result = result.filter((row) =>
+        fieldsToSearch.some((field) => {
+          const value = getNestedValue(row, String(field));
+          if (value == null) return false;
+          return String(value).toLowerCase().includes(lowerFilter);
+        })
+      );
+    }
+
+    if (hasSort) {
+      result = [...result].sort((a, b) => {
+        const aVal = getNestedValue(a, sort.field!);
+        const bVal = getNestedValue(b, sort.field!);
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return sort.direction === 'asc' ? 1 : -1;
+        if (bVal == null) return sort.direction === 'asc' ? -1 : 1;
+        let comparison = 0;
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          comparison = aVal - bVal;
+        } else {
+          comparison = String(aVal).localeCompare(String(bVal));
+        }
+        return sort.direction === 'asc' ? comparison : -comparison;
+      });
+    }
+
+    return result;
+  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize]);
+
   // Build merged view: sortedData + leaving rows at their snapshot positions
   const mergedData = useMemo(() => {
     if (rowExitDuration === 0 || leavingRowsRef.current.size === 0) {
-      return sortedData;
+      // Zero-cost passthrough: wrap in {row, isLeaving: false} for consistency
+      return sortedData.map((row) => ({ row, isLeaving: false }));
     }
 
     // Start with sortedData
@@ -681,72 +748,6 @@ export function DataGrid<T extends object>({
       })
     ).length;
   }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices]);
-
-  // sortedData for non-virtualized mode (still needed for table rendering)
-  // For virtualized mode, we use getRowAtIndex directly
-  const sortedData = useMemo(() => {
-    // For WASM mode with virtualization, return empty - we'll use getRowAtIndex
-    if (wasmCoreReady && wasmIndices && shouldVirtualize) {
-      // Return a sparse proxy array that uses cached indices
-      // This avoids creating 10k item array on every render
-      return [] as T[];
-    }
-
-    const fieldsToSearch = filterFields || columns.map((c) => c.field as keyof T);
-    const hasFilter = filter.trim().length > 0;
-    const hasSort = sort.field && sort.direction;
-
-    // Use WASM indices if available (non-virtualized mode)
-    if (wasmCoreReady && wasmIndices) {
-      return wasmIndices.map((i) => data[i]);
-    }
-
-    // Fallback: Try old WASM filterAndSort for medium datasets
-    if (isWasmAvailable() && data.length > 1000 && (hasFilter || hasSort)) {
-      const filterColumns = fieldsToSearch.map((field) =>
-        data.map((row) => getNestedValue(row, String(field)))
-      );
-      const sortValues = sort.field
-        ? data.map((row) => getNestedValue(row, sort.field!))
-        : data.map((_, i) => i);
-      const direction: WasmSortDirection = sort.direction === 'desc' ? 'desc' : 'asc';
-      const indices = filterAndSort(sortValues, filterColumns, filter, direction);
-      return indices.map((i) => data[i]);
-    }
-
-    // JavaScript fallback
-    let result = data;
-
-    if (hasFilter) {
-      const lowerFilter = filter.toLowerCase();
-      result = result.filter((row) =>
-        fieldsToSearch.some((field) => {
-          const value = getNestedValue(row, String(field));
-          if (value == null) return false;
-          return String(value).toLowerCase().includes(lowerFilter);
-        })
-      );
-    }
-
-    if (hasSort) {
-      result = [...result].sort((a, b) => {
-        const aVal = getNestedValue(a, sort.field!);
-        const bVal = getNestedValue(b, sort.field!);
-        if (aVal == null && bVal == null) return 0;
-        if (aVal == null) return sort.direction === 'asc' ? 1 : -1;
-        if (bVal == null) return sort.direction === 'asc' ? -1 : 1;
-        let comparison = 0;
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          comparison = aVal - bVal;
-        } else {
-          comparison = String(aVal).localeCompare(String(bVal));
-        }
-        return sort.direction === 'asc' ? comparison : -comparison;
-      });
-    }
-
-    return result;
-  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize]);
 
   const handleSort = (field: string) => {
     setSort((prev) => {
