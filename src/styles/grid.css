@@ -48,6 +48,7 @@
   /* Timing */
   --grid-flash-duration: 800ms;
   --grid-transition-speed: 150ms;
+  --grid-row-exit-duration: 0ms; /* overridden by inline style from rowExitDuration prop */
 }
 
 /* Base grid container */
