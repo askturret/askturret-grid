@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-12
+
+### Added
+- `adaptiveFlash` opt-in prop and `useAdaptiveFlash(enabled)` gate for automatic FPS-adaptive flash throttling (#16)
+- `rowClass` and `rowExitDuration` props for animated row removal / exit transitions (#15)
+
+### Changed
+- Project license switched from MIT to Apache License 2.0, with a new NOTICE file (#17)
+
 ## [0.1.6] - 2024-12-23
 
 ### Added
@@ -75,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TypeScript support with full type inference
 - Dark theme with CSS variables
 
+[0.2.0]: https://github.com/askturret/askturret-grid/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/alprimak/askturret-grid/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/alprimak/askturret-grid/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/alprimak/askturret-grid/compare/v0.1.3...v0.1.4
