@@ -858,7 +858,16 @@ export function DataGrid<T extends object>({
         </div>
       );
     },
-    [orderedColumns, getRowKey, getCellFlashClass, onRowClick, updateFlashForRow, resizable, getColumnWidth, rowClass]
+    [
+      orderedColumns,
+      getRowKey,
+      getCellFlashClass,
+      onRowClick,
+      updateFlashForRow,
+      resizable,
+      getColumnWidth,
+      rowClass,
+    ]
   );
 
   // Render virtualized header
@@ -1004,7 +1013,10 @@ export function DataGrid<T extends object>({
   );
 
   const containerClass = `askturret-grid ${compact ? 'compact' : ''} ${className}`.trim();
-  const containerStyle = rowExitDuration > 0 ? { '--grid-row-exit-duration': `${rowExitDuration}ms` } as React.CSSProperties : undefined;
+  const containerStyle =
+    rowExitDuration > 0
+      ? ({ '--grid-row-exit-duration': `${rowExitDuration}ms` } as React.CSSProperties)
+      : undefined;
 
   return (
     <div className={containerClass} style={containerStyle}>

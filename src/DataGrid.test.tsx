@@ -566,10 +566,9 @@ describe('DataGrid', () => {
       expect(leavingRow).toBeInTheDocument();
 
       // rowClass should have been called with isLeaving: true
-      expect(rowClassMock).toHaveBeenCalledWith(
-        expect.objectContaining({ id: '1', name: 'Alpha' }),
-        { isLeaving: true }
-      );
+      expect(rowClassMock).toHaveBeenCalledWith(expect.objectContaining({ id: '1', name: 'Alpha' }), {
+        isLeaving: true,
+      });
 
       // After rowExitDuration + cleanup interval, Alpha should be unmounted
       // Cleanup runs every 1000ms (FLASH_CLEANUP_INTERVAL)
@@ -742,24 +741,12 @@ describe('DataGrid', () => {
       ];
 
       const { rerender, container } = render(
-        <DataGrid
-          data={testData}
-          columns={columnsWithFlash}
-          rowKey="id"
-          rowExitDuration={300}
-        />
+        <DataGrid data={testData} columns={columnsWithFlash} rowKey="id" rowExitDuration={300} />
       );
 
       // Remove Alpha (which has flashOnChange value column)
       const newData = testData.filter((r) => r.id !== '1');
-      rerender(
-        <DataGrid
-          data={newData}
-          columns={columnsWithFlash}
-          rowKey="id"
-          rowExitDuration={300}
-        />
-      );
+      rerender(<DataGrid data={newData} columns={columnsWithFlash} rowKey="id" rowExitDuration={300} />);
 
       // Alpha should be leaving
       expect(screen.getByText('Alpha')).toBeInTheDocument();
