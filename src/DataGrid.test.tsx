@@ -529,7 +529,7 @@ describe('DataGrid', () => {
   });
 
   describe('row-exit lifecycle', () => {
-    it('renders leaving row with isLeaving: true for rowExitDuration', () => {
+    it('renders leaving row with isLeaving: true for rowExitDuration', async () => {
       vi.useFakeTimers();
       const rowClassMock = vi.fn((row: TestRow, meta: { isLeaving: boolean }) => {
         return meta.isLeaving ? 'leaving' : '';
@@ -571,9 +571,12 @@ describe('DataGrid', () => {
         { isLeaving: true }
       );
 
-      // After rowExitDuration, Alpha should be unmounted
-      vi.advanceTimersByTime(301);
-      expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+      // After rowExitDuration + cleanup interval, Alpha should be unmounted
+      // Cleanup runs every 1000ms (FLASH_CLEANUP_INTERVAL)
+      vi.advanceTimersByTime(1001);
+      await vi.waitFor(() => {
+        expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+      });
 
       vi.useRealTimers();
     });

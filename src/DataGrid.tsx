@@ -437,6 +437,31 @@ export function DataGrid<T extends object>({
     [rowKey]
   );
 
+  // Compute WASM indices in useMemo so they're available during render (not after)
+  const wasmIndices = useMemo(() => {
+    if (!wasmCoreReady || !gridCoreRef.current) {
+      return null;
+    }
+
+    // Set filter
+    gridCoreRef.current.setFilter(filter);
+
+    // Set sort - find column index in ALL columns (matches setData order)
+    if (sort.field && sort.direction) {
+      const allFields = columns.map((c) => String(c.field));
+      const sortColIndex = allFields.findIndex((f) => f === sort.field);
+      if (sortColIndex >= 0) {
+        gridCoreRef.current.setSort(sortColIndex, sort.direction);
+      } else {
+        gridCoreRef.current.setSort(-1, null);
+      }
+    } else {
+      gridCoreRef.current.setSort(-1, null);
+    }
+
+    return gridCoreRef.current.getView();
+  }, [filter, sort, columns, wasmCoreReady, data.length]);
+
   // sortedData for non-virtualized mode (still needed for table rendering)
   // For virtualized mode, we use getRowAtIndex directly
   const sortedData = useMemo(() => {
@@ -687,31 +712,6 @@ export function DataGrid<T extends object>({
       setLeavingRowsVersion((v) => v + 1);
     }
   }, [sortedData, rowExitDuration, getRowKey]);
-
-  // Compute WASM indices in useMemo so they're available during render (not after)
-  const wasmIndices = useMemo(() => {
-    if (!wasmCoreReady || !gridCoreRef.current) {
-      return null;
-    }
-
-    // Set filter
-    gridCoreRef.current.setFilter(filter);
-
-    // Set sort - find column index in ALL columns (matches setData order)
-    if (sort.field && sort.direction) {
-      const allFields = columns.map((c) => String(c.field));
-      const sortColIndex = allFields.findIndex((f) => f === sort.field);
-      if (sortColIndex >= 0) {
-        gridCoreRef.current.setSort(sortColIndex, sort.direction);
-      } else {
-        gridCoreRef.current.setSort(-1, null);
-      }
-    } else {
-      gridCoreRef.current.setSort(-1, null);
-    }
-
-    return gridCoreRef.current.getView();
-  }, [filter, sort, columns, wasmCoreReady, data.length]);
 
   // Get row at index - uses WASM indices or direct data access
   const getRowAtIndex = useCallback(
