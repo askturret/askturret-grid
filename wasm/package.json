@@ -6,10 +6,10 @@
   "author": "AskTurret",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alprimak/askturret-grid"
+    "url": "https://github.com/askturret/askturret-grid"
   },
   "bugs": {
-    "url": "https://github.com/alprimak/askturret-grid/issues"
+    "url": "https://github.com/askturret/askturret-grid/issues"
   },
   "homepage": "https://grid.askturret.com",
   "keywords": [
