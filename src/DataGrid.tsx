@@ -4,6 +4,7 @@ import { filterAndSort, isWasmAvailable, type SortDirection as WasmSortDirection
 import { GridCore } from './wasm/GridCore';
 import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
 import { useFlashDetection } from './hooks/useFlashDetection';
+import { useColumnReorder } from './hooks/useColumnReorder';
 import { getNestedValue } from './utils/nested';
 
 /**
@@ -211,24 +212,16 @@ export function DataGrid<T extends object>({
     atLimit: 'min' | 'max' | null;
   } | null>(null);
 
-  // Column reorder state (uncontrolled mode)
-  const [internalOrder, setInternalOrder] = useState<string[]>([]);
-  const [dragging, setDragging] = useState<{
-    field: string;
-    targetIndex: number | null;
-  } | null>(null);
+  // Column reordering
+  const { columnOrder, orderedColumns, dragging, handleDragStart, handleDragOver, handleDrop, handleDragEnd } =
+    useColumnReorder({
+      columns,
+      controlledOrder,
+      onColumnReorder,
+    });
 
-  // Determine controlled vs uncontrolled
+  // Determine controlled vs uncontrolled (for resize)
   const columnWidths = controlledWidths ?? internalWidths;
-  const columnOrder = controlledOrder ?? internalOrder;
-
-  // Order columns based on columnOrder prop
-  const orderedColumns = useMemo(() => {
-    if (columnOrder.length === 0) return columns;
-    return columnOrder
-      .map((field) => columns.find((c) => String(c.field) === field))
-      .filter((c): c is ColumnDef<T> => c !== undefined);
-  }, [columns, columnOrder]);
 
   // Get column width (controlled > column.width > default)
   const getColumnWidth = useCallback(
@@ -327,49 +320,6 @@ export function DataGrid<T extends object>({
     return () => body.removeEventListener('scroll', handleScroll);
   }, [resizable]);
 
-  // Drag & drop handlers for column reordering
-  const handleDragStart = useCallback((field: string, e: React.DragEvent) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', field);
-    setDragging({ field, targetIndex: null });
-  }, []);
-
-  const handleDragOver = useCallback(
-    (targetField: string, targetIndex: number, e: React.DragEvent) => {
-      e.preventDefault();
-      if (!dragging || dragging.field === targetField) return;
-      setDragging((prev) => (prev ? { ...prev, targetIndex } : null));
-    },
-    [dragging]
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (!dragging || dragging.targetIndex === null) return;
-
-      const currentOrder = columnOrder.length > 0 ? columnOrder : columns.map((c) => String(c.field));
-
-      const fromIndex = currentOrder.indexOf(dragging.field);
-      if (fromIndex === -1) return;
-
-      const newOrder = [...currentOrder];
-      newOrder.splice(fromIndex, 1);
-      newOrder.splice(dragging.targetIndex, 0, dragging.field);
-
-      if (onColumnReorder) {
-        onColumnReorder(newOrder);
-      } else {
-        setInternalOrder(newOrder);
-      }
-      setDragging(null);
-    },
-    [dragging, columnOrder, columns, onColumnReorder]
-  );
-
-  const handleDragEnd = useCallback(() => {
-    setDragging(null);
-  }, []);
 
   const rowHeight = rowHeightProp ?? (compact ? 28 : 36);
 
