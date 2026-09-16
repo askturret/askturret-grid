@@ -31,13 +31,13 @@ describe('WorkerGridStore', () => {
             mockWorker.onmessage(
               new MessageEvent('message', {
                 data: { type: 'ready', _requestId: msg._requestId },
-              }),
+              })
             );
           } else if (msg.type === 'loadRows') {
             mockWorker.onmessage(
               new MessageEvent('message', {
                 data: { type: 'loaded', rowCount: msg.rows.length, _requestId: msg._requestId },
-              }),
+              })
             );
           } else if (msg.type === 'getStats') {
             mockWorker.onmessage(
@@ -49,7 +49,7 @@ describe('WorkerGridStore', () => {
                   lastBatchTime: 0,
                   _requestId: msg._requestId,
                 },
-              }),
+              })
             );
           }
         }, 0);
@@ -141,4 +141,3 @@ describe('WorkerGridStore', () => {
     }
   });
 });
-
