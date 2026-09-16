@@ -70,3 +70,40 @@ jobs:
           name: demo-dist
           path: demo/dist
           retention-days: 7
+
+  test-wasm:
+    name: Test WASM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            wasm/target/
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('wasm/Cargo.lock', 'wasm/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-wasm-
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Run cargo test
+        working-directory: wasm
+        run: cargo test
+
+      - name: Build WASM package
+        working-directory: wasm
+        run: wasm-pack build --target web --out-dir pkg
