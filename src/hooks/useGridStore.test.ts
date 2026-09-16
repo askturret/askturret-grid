@@ -59,14 +59,21 @@ describe('useGridStore', () => {
       { id: 'row2', value: 'test2' },
     ];
 
+    // Track isReady state changes to detect re-initialization
+    const readyStates: boolean[] = [];
+
     // First render with fresh references
-    const { rerender } = renderHook(
-      ({ schema, initialData }) =>
-        useGridStore({
+    const { result, rerender } = renderHook(
+      ({ schema, initialData }) => {
+        const store = useGridStore({
           storeType: 'js', // Use 'js' for simplicity (no async init)
           schema,
           initialData,
-        }),
+        });
+        // Track every isReady state
+        readyStates.push(store.isReady);
+        return store;
+      },
       {
         initialProps: {
           schema: createSchema(),
@@ -78,14 +85,13 @@ describe('useGridStore', () => {
     // Wait for initialization
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // Get the initial store reference
-    const firstResult = renderHook(() =>
-      useGridStore({
-        storeType: 'js',
-        schema: createSchema(),
-        initialData: createInitialData(),
-      })
-    );
+    // Initial state: should be ready
+    expect(result.current.isReady).toBe(true);
+    expect(result.current.rowCount).toBe(2); // 2 initial rows
+    expect(result.current.data).toHaveLength(2);
+
+    // Clear the tracked states before rerender
+    readyStates.length = 0;
 
     // Rerender with NEW fresh references (simulating parent component rerender with inline props)
     rerender({
@@ -96,15 +102,16 @@ describe('useGridStore', () => {
     // Wait for any potential re-initialization
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // The store should NOT have been disposed and recreated
-    // We verify this by checking that isReady didn't flip to false during rerender
+    // CRITICAL ASSERTION: isReady should stay true throughout
     // In the buggy version, fresh schema/initialData would cause dispose() -> re-init
+    // which would flip isReady to false, then back to true
+    // With the fix, isReady never flips - it stays true
+    expect(result.current.isReady).toBe(true);
+    expect(readyStates.every((state) => state === true)).toBe(true);
 
-    // This is a basic smoke test - the real verification is that the effect
-    // doesn't run again (which we can't easily test without implementation details)
-    // The fix is in the deps array, removing schema/initialData
-
-    firstResult.unmount();
+    // Data should still be present (not reset)
+    expect(result.current.rowCount).toBe(2);
+    expect(result.current.data).toHaveLength(2);
   });
 
   it('initializes with js store type', async () => {
