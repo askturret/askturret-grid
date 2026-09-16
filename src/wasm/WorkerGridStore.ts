@@ -57,8 +57,20 @@ type WorkerRequest =
 type WorkerResponse =
   | { type: 'ready'; _requestId?: number }
   | { type: 'loaded'; rowCount: number; _requestId?: number }
-  | { type: 'viewUpdate'; rows: unknown[]; viewCount: number; totalCount: number; startIndex: number }
-  | { type: 'stats'; pendingUpdates: number; processedUpdates: number; lastBatchTime: number; _requestId?: number }
+  | {
+      type: 'viewUpdate';
+      rows: unknown[];
+      viewCount: number;
+      totalCount: number;
+      startIndex: number;
+    }
+  | {
+      type: 'stats';
+      pendingUpdates: number;
+      processedUpdates: number;
+      lastBatchTime: number;
+      _requestId?: number;
+    }
   | { type: 'error'; message: string };
 
 // Worker code as inline string (for bundler compatibility)
