@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { OrderBook, type OrderBookData } from './OrderBook';
 
 describe('OrderBook', () => {
@@ -135,13 +135,13 @@ describe('OrderBook', () => {
 
       render(<OrderBook data={sampleData} onPriceClick={onPriceClick} />);
 
-      // Find and click an ask row
+      // Find and click an ask row (asks are rendered reversed, so first row is 103)
       const askRow = document.querySelector('.askturret-orderbook-row.ask');
       expect(askRow).toBeTruthy();
 
       fireEvent.click(askRow!);
 
-      expect(onPriceClick).toHaveBeenCalledWith(101, 'ask');
+      expect(onPriceClick).toHaveBeenCalledWith(103, 'ask');
       expect(onPriceClick).toHaveBeenCalledTimes(1);
     });
 
@@ -242,7 +242,9 @@ describe('OrderBook', () => {
       expect(flashRows.length).toBe(1);
 
       // Advance time past FLASH_DURATION (800ms) + cleanup interval (200ms)
-      vi.advanceTimersByTime(1100);
+      act(() => {
+        vi.advanceTimersByTime(1100);
+      });
 
       // Flash should be cleared
       flashRows = document.querySelectorAll('.flash-up');

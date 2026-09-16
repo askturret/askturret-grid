@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TopMovers, type MoverItem } from './TopMovers';
 
 describe('TopMovers', () => {
@@ -138,7 +138,9 @@ describe('TopMovers', () => {
       // A should still be visible as a gainer from initial data
 
       // Advance time to trigger interval update
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
 
       // Now rankings should update
       // A should now be in losers, B should be in gainers
@@ -201,7 +203,9 @@ describe('TopMovers', () => {
       rerender(<TopMovers data={newData} updateInterval={5000} />);
 
       // Trigger interval update
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
 
       // Both items should flash (ranks changed)
       flashedItems = document.querySelectorAll('.flash');
@@ -209,27 +213,39 @@ describe('TopMovers', () => {
     });
 
     it('clears flash after FLASH_DURATION', () => {
-      const initialData: MoverItem[] = [{ id: '1', symbol: 'A', price: 100, change: 10, changePercent: 10 }];
+      const initialData: MoverItem[] = [
+        { id: '1', symbol: 'A', price: 100, change: 10, changePercent: 10 },
+        { id: '2', symbol: 'B', price: 100, change: 5, changePercent: 5 },
+      ];
 
       const { rerender } = render(<TopMovers data={initialData} updateInterval={5000} />);
 
       // Trigger first interval (establishes previous ranks)
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
 
-      // Change rankings
-      const newData: MoverItem[] = [{ id: '1', symbol: 'A', price: 100, change: 20, changePercent: 20 }];
+      // Change rankings: B now higher than A
+      const newData: MoverItem[] = [
+        { id: '1', symbol: 'A', price: 100, change: 5, changePercent: 5 },
+        { id: '2', symbol: 'B', price: 100, change: 10, changePercent: 10 },
+      ];
 
       rerender(<TopMovers data={newData} updateInterval={5000} />);
 
       // Trigger update
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
 
       // Flash should be present
       let flashedItems = document.querySelectorAll('.flash');
       expect(flashedItems.length).toBeGreaterThan(0);
 
       // Advance past FLASH_DURATION (1500ms)
-      vi.advanceTimersByTime(1600);
+      act(() => {
+        vi.advanceTimersByTime(1600);
+      });
 
       // Flash should be cleared
       flashedItems = document.querySelectorAll('.flash');
@@ -255,7 +271,9 @@ describe('TopMovers', () => {
       const { rerender } = render(<TopMovers data={initialData} gainersCount={2} updateInterval={5000} />);
 
       // Establish initial rankings (A rank 1, B rank 2)
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
 
       // B overtakes A
       const newData: MoverItem[] = [
@@ -266,7 +284,9 @@ describe('TopMovers', () => {
       rerender(<TopMovers data={newData} gainersCount={2} updateInterval={5000} />);
 
       // Trigger update
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
 
       // Should show rank change indicators (↑ or ↓)
       const rankChanges = document.querySelectorAll('.rank-change');
