@@ -1,3 +1,6 @@
+// DELIBERATE ERROR FOR CI TESTING - TO BE REVERTED
+this is not valid rust syntax!!!
+
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Object, Reflect, Uint32Array};
 use std::collections::{HashMap, HashSet};
