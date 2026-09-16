@@ -43,22 +43,34 @@ export interface ViewportInfo {
 
 // Message types for worker communication
 type WorkerRequest =
-  | { type: 'init'; schema: ColumnSchema[]; batchInterval: number }
-  | { type: 'loadRows'; rows: unknown[] }
+  | { type: 'init'; schema: ColumnSchema[]; batchInterval: number; _requestId?: number }
+  | { type: 'loadRows'; rows: unknown[]; _requestId?: number }
   | { type: 'queueUpdates'; updates: unknown[] }
   | { type: 'setFilter'; search: string }
   | { type: 'clearFilter' }
   | { type: 'setSort'; column: string; direction: SortDirection }
   | { type: 'clearSort' }
   | { type: 'setViewport'; startIndex: number; endIndex: number }
-  | { type: 'getStats' }
+  | { type: 'getStats'; _requestId?: number }
   | { type: 'dispose' };
 
 type WorkerResponse =
-  | { type: 'ready' }
-  | { type: 'loaded'; rowCount: number }
-  | { type: 'viewUpdate'; rows: unknown[]; viewCount: number; totalCount: number; startIndex: number }
-  | { type: 'stats'; pendingUpdates: number; processedUpdates: number; lastBatchTime: number }
+  | { type: 'ready'; _requestId?: number }
+  | { type: 'loaded'; rowCount: number; _requestId?: number }
+  | {
+      type: 'viewUpdate';
+      rows: unknown[];
+      viewCount: number;
+      totalCount: number;
+      startIndex: number;
+    }
+  | {
+      type: 'stats';
+      pendingUpdates: number;
+      processedUpdates: number;
+      lastBatchTime: number;
+      _requestId?: number;
+    }
   | { type: 'error'; message: string };
 
 // Worker code as inline string (for bundler compatibility)
@@ -256,7 +268,7 @@ self.onmessage = async (e) => {
     case 'init': {
       batchInterval = msg.batchInterval || 16;
       store = new JsGridStore(msg.schema);
-      self.postMessage({ type: 'ready' });
+      self.postMessage({ type: 'ready', _requestId: msg._requestId });
       break;
     }
 
@@ -267,7 +279,7 @@ self.onmessage = async (e) => {
       }
       const count = store.loadRows(msg.rows);
       sendVisibleRows();
-      self.postMessage({ type: 'loaded', rowCount: count });
+      self.postMessage({ type: 'loaded', rowCount: count, _requestId: msg._requestId });
       break;
     }
 
@@ -317,7 +329,8 @@ self.onmessage = async (e) => {
         type: 'stats',
         pendingUpdates: pendingUpdates.length,
         processedUpdates,
-        lastBatchTime
+        lastBatchTime,
+        _requestId: msg._requestId
       });
       break;
     }
@@ -396,11 +409,15 @@ export class WorkerGridStore<T extends Record<string, unknown> = Record<string, 
   private handleMessage(msg: WorkerResponse): void {
     switch (msg.type) {
       case 'ready':
-        this.resolvePending('init', true);
+        if (msg._requestId !== undefined) {
+          this.resolvePending(String(msg._requestId), true);
+        }
         break;
 
       case 'loaded':
-        this.resolvePending('loadRows', msg.rowCount);
+        if (msg._requestId !== undefined) {
+          this.resolvePending(String(msg._requestId), msg.rowCount);
+        }
         break;
 
       case 'viewUpdate':
@@ -419,7 +436,9 @@ export class WorkerGridStore<T extends Record<string, unknown> = Record<string, 
         break;
 
       case 'stats':
-        this.resolvePending('getStats', msg);
+        if (msg._requestId !== undefined) {
+          this.resolvePending(String(msg._requestId), msg);
+        }
         break;
 
       case 'error':
@@ -431,16 +450,17 @@ export class WorkerGridStore<T extends Record<string, unknown> = Record<string, 
 
   private sendRequest(request: WorkerRequest): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const id = request.type;
-      this.pendingRequests.set(id, { resolve, reject });
-      this.worker?.postMessage(request);
+      const requestId = this.messageId++;
+      const requestWithId = { ...request, _requestId: requestId };
+      this.pendingRequests.set(String(requestId), { resolve, reject });
+      this.worker?.postMessage(requestWithId);
     });
   }
 
-  private resolvePending(type: string, value: unknown): void {
-    const pending = this.pendingRequests.get(type);
+  private resolvePending(requestId: string, value: unknown): void {
+    const pending = this.pendingRequests.get(requestId);
     if (pending) {
-      this.pendingRequests.delete(type);
+      this.pendingRequests.delete(requestId);
       pending.resolve(value);
     }
   }
