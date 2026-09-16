@@ -6,6 +6,7 @@ import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
 import { useFlashDetection } from './hooks/useFlashDetection';
 import { useColumnReorder } from './hooks/useColumnReorder';
 import { useColumnResize } from './hooks/useColumnResize';
+import { useSortState } from './hooks/useSortState';
 import { getNestedValue } from './utils/nested';
 
 /**
@@ -144,13 +145,6 @@ export interface DataGridProps<T> {
   rowExitDuration?: number;
 }
 
-type SortDirection = 'asc' | 'desc' | null;
-
-interface SortState {
-  field: string | null;
-  direction: SortDirection;
-}
-
 const VIRTUALIZATION_THRESHOLD = 100;
 const WASM_CORE_THRESHOLD = 1000;
 
@@ -189,7 +183,9 @@ export function DataGrid<T extends object>({
   rowClass,
   rowExitDuration = 0,
 }: DataGridProps<T>) {
-  const [sort, setSort] = useState<SortState>({ field: null, direction: null });
+  // Sort state
+  const { sort, handleSort: handleSortBase } = useSortState();
+
   const [filter, setFilter] = useState('');
   const [, forceUpdate] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -564,16 +560,9 @@ export function DataGrid<T extends object>({
     ).length;
   }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices]);
 
+  // R2: Parent orchestrates clearing leaving rows on sort change
   const handleSort = (field: string) => {
-    setSort((prev) => {
-      if (prev.field !== field) {
-        return { field, direction: 'asc' };
-      }
-      if (prev.direction === 'asc') {
-        return { field, direction: 'desc' };
-      }
-      return { field: null, direction: null };
-    });
+    handleSortBase(field);
     // Clear leaving rows on sort change
     if (rowExitDuration > 0 && leavingRowsRef.current.size > 0) {
       leavingRowsRef.current.clear();
