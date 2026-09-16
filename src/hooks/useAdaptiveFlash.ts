@@ -70,7 +70,8 @@ export function useAdaptiveFlash(enabled: boolean = true): AdaptiveFlashResult {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [disableFlash, enabled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]); // Removed disableFlash from deps - the rAF loop should survive state transitions
 
   // Return stable memoized result when disabled
   if (!enabled) return disabledResult;
