@@ -34,9 +34,16 @@ describe('WorkerGridStore', () => {
               })
             );
           } else if (msg.type === 'loadRows') {
+            // Emit 'loaded' response
             mockWorker.onmessage(
               new MessageEvent('message', {
                 data: { type: 'loaded', rowCount: msg.rows.length, _requestId: msg._requestId },
+              })
+            );
+            // Simulate the 'viewUpdate' that the real worker sends after loadRows
+            mockWorker.onmessage(
+              new MessageEvent('message', {
+                data: { type: 'viewUpdate', totalCount: msg.rows.length },
               })
             );
           } else if (msg.type === 'getStats') {
