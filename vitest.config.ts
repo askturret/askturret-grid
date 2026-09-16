@@ -7,6 +7,26 @@ export default defineConfig({
     passWithNoTests: true,
     setupFiles: ['./src/test-setup.ts'],
     globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json', 'lcov'],
+      include: [
+        'src/**/*.{ts,tsx}',
+      ],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/**/*.bench.test.{ts,tsx}',
+        'src/test-setup.ts',
+        'src/**/__mocks__/**',
+      ],
+      // Coverage thresholds for engine layer modules
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 60,
+        statements: 70,
+      },
+    },
   },
   resolve: {
     alias: {
