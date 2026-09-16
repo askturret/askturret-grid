@@ -5,6 +5,7 @@ import { GridCore } from './wasm/GridCore';
 import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
 import { useFlashDetection } from './hooks/useFlashDetection';
 import { useColumnReorder } from './hooks/useColumnReorder';
+import { useColumnResize } from './hooks/useColumnResize';
 import { getNestedValue } from './utils/nested';
 
 /**
@@ -203,15 +204,6 @@ export function DataGrid<T extends object>({
   // Adaptive flash monitoring (when enabled)
   const { disableFlash: adaptiveDisable } = useAdaptiveFlash(adaptiveFlash);
 
-  // Column resize state (uncontrolled mode)
-  const [internalWidths, setInternalWidths] = useState<Record<string, number>>({});
-  const [resizing, setResizing] = useState<{
-    field: string;
-    startX: number;
-    startWidth: number;
-    atLimit: 'min' | 'max' | null;
-  } | null>(null);
-
   // Column reordering
   const { columnOrder, orderedColumns, dragging, handleDragStart, handleDragOver, handleDrop, handleDragEnd } =
     useColumnReorder({
@@ -220,105 +212,17 @@ export function DataGrid<T extends object>({
       onColumnReorder,
     });
 
-  // Determine controlled vs uncontrolled (for resize)
-  const columnWidths = controlledWidths ?? internalWidths;
-
-  // Get column width (controlled > column.width > default)
-  const getColumnWidth = useCallback(
-    (col: ColumnDef<T>): number => {
-      const field = String(col.field);
-      if (columnWidths[field] !== undefined) return columnWidths[field];
-      // Parse column width if specified (e.g., "100px" -> 100)
-      if (col.width) {
-        const parsed = parseInt(col.width, 10);
-        if (!isNaN(parsed)) return parsed;
-      }
-      return 100; // default width
-    },
-    [columnWidths]
-  );
-
-  // Resize handlers
-  const handleResizeStart = useCallback(
-    (field: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const col = columns.find((c) => String(c.field) === field);
-      const currentWidth = getColumnWidth(col!);
-      setResizing({ field, startX: e.clientX, startWidth: currentWidth, atLimit: null });
-      document.body.classList.add('askturret-grid-resizing');
-    },
-    [columns, getColumnWidth]
-  );
-
-  const handleResizeMove = useCallback(
-    (e: MouseEvent) => {
-      if (!resizing) return;
-      const col = columns.find((c) => String(c.field) === resizing.field);
-      const colMinWidth = col?.minWidth ?? minColumnWidth;
-      const colMaxWidth = col?.maxWidth ?? maxColumnWidth;
-      const delta = e.clientX - resizing.startX;
-      const rawWidth = resizing.startWidth + delta;
-      const newWidth = Math.max(colMinWidth, Math.min(colMaxWidth, rawWidth));
-
-      // Detect if we're at a limit
-      let atLimit: 'min' | 'max' | null = null;
-      if (rawWidth <= colMinWidth) {
-        atLimit = 'min';
-      } else if (rawWidth >= colMaxWidth) {
-        atLimit = 'max';
-      }
-
-      // Update limit state for visual feedback
-      if (atLimit !== resizing.atLimit) {
-        setResizing((prev) => (prev ? { ...prev, atLimit } : null));
-        // Update body class for cursor feedback
-        document.body.classList.toggle('askturret-grid-at-min', atLimit === 'min');
-        document.body.classList.toggle('askturret-grid-at-max', atLimit === 'max');
-      }
-
-      if (onColumnResize) {
-        onColumnResize(resizing.field, newWidth);
-      } else {
-        setInternalWidths((prev) => ({ ...prev, [resizing.field]: newWidth }));
-      }
-    },
-    [resizing, columns, minColumnWidth, maxColumnWidth, onColumnResize]
-  );
-
-  const handleResizeEnd = useCallback(() => {
-    setResizing(null);
-    document.body.classList.remove('askturret-grid-resizing');
-    document.body.classList.remove('askturret-grid-at-min');
-    document.body.classList.remove('askturret-grid-at-max');
-  }, []);
-
-  // Attach/detach resize listeners
-  useEffect(() => {
-    if (resizing) {
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeEnd);
-      return () => {
-        document.removeEventListener('mousemove', handleResizeMove);
-        document.removeEventListener('mouseup', handleResizeEnd);
-      };
-    }
-  }, [resizing, handleResizeMove, handleResizeEnd]);
-
-  // Sync horizontal scroll between header and body in virtualized fixed-width mode
-  useEffect(() => {
-    if (!resizable) return;
-    const body = parentRef.current;
-    const header = headerRef.current;
-    if (!body || !header) return;
-
-    const handleScroll = () => {
-      header.scrollLeft = body.scrollLeft;
-    };
-
-    body.addEventListener('scroll', handleScroll);
-    return () => body.removeEventListener('scroll', handleScroll);
-  }, [resizable]);
+  // Column resizing
+  const { columnWidths, resizing, getColumnWidth, handleResizeStart } = useColumnResize({
+    columns,
+    controlledWidths,
+    onColumnResize,
+    minColumnWidth,
+    maxColumnWidth,
+    resizable,
+    parentRef,
+    headerRef,
+  });
 
 
   const rowHeight = rowHeightProp ?? (compact ? 28 : 36);
