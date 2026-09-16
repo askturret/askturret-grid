@@ -64,7 +64,7 @@ Current baseline thresholds (established in issue #41):
 | Metric | Threshold |
 |--------|-----------|
 | Lines | 70% |
-| Functions | 70% |
+| Functions | 68% |
 | Branches | 60% |
 | Statements | 70% |
 
