@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { OrderBook, type OrderBookData } from './OrderBook';
 
 describe('OrderBook', () => {
@@ -117,8 +116,7 @@ describe('OrderBook', () => {
 
   describe('price level clicking', () => {
     it('calls onPriceClick with correct price and side for bid', async () => {
-      const user = userEvent.setup({ delay: null });
-      const onPriceClick = vi.fn();
+            const onPriceClick = vi.fn();
 
       render(<OrderBook data={sampleData} onPriceClick={onPriceClick} />);
 
@@ -126,15 +124,14 @@ describe('OrderBook', () => {
       const bidRow = document.querySelector('.askturret-orderbook-row.bid');
       expect(bidRow).toBeTruthy();
 
-      await user.click(bidRow!);
+      fireEvent.click(bidRow!);
 
       expect(onPriceClick).toHaveBeenCalledWith(100, 'bid');
       expect(onPriceClick).toHaveBeenCalledTimes(1);
     });
 
     it('calls onPriceClick with correct price and side for ask', async () => {
-      const user = userEvent.setup({ delay: null });
-      const onPriceClick = vi.fn();
+            const onPriceClick = vi.fn();
 
       render(<OrderBook data={sampleData} onPriceClick={onPriceClick} />);
 
@@ -142,7 +139,7 @@ describe('OrderBook', () => {
       const askRow = document.querySelector('.askturret-orderbook-row.ask');
       expect(askRow).toBeTruthy();
 
-      await user.click(askRow!);
+      fireEvent.click(askRow!);
 
       expect(onPriceClick).toHaveBeenCalledWith(101, 'ask');
       expect(onPriceClick).toHaveBeenCalledTimes(1);

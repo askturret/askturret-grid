@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { TopMovers, type MoverItem } from './TopMovers';
 
 describe('TopMovers', () => {
@@ -289,8 +288,7 @@ describe('TopMovers', () => {
 
   describe('item click callback', () => {
     it('calls onItemClick with gainer item and type', async () => {
-      const user = userEvent.setup({ delay: null });
-      const onItemClick = vi.fn();
+            const onItemClick = vi.fn();
 
       const data: MoverItem[] = [
         { id: '1', symbol: 'GAINER', price: 100, change: 10, changePercent: 10 },
@@ -301,7 +299,7 @@ describe('TopMovers', () => {
       const gainerItem = screen.getByText('GAINER').closest('.askturret-topmovers-item');
       expect(gainerItem).toBeTruthy();
 
-      await user.click(gainerItem!);
+      fireEvent.click(gainerItem!);
 
       expect(onItemClick).toHaveBeenCalledWith(
         expect.objectContaining({ symbol: 'GAINER' }),
@@ -310,8 +308,7 @@ describe('TopMovers', () => {
     });
 
     it('calls onItemClick with loser item and type', async () => {
-      const user = userEvent.setup({ delay: null });
-      const onItemClick = vi.fn();
+            const onItemClick = vi.fn();
 
       const data: MoverItem[] = [
         { id: '1', symbol: 'LOSER', price: 100, change: -10, changePercent: -10 },
@@ -322,7 +319,7 @@ describe('TopMovers', () => {
       const loserItem = screen.getByText('LOSER').closest('.askturret-topmovers-item');
       expect(loserItem).toBeTruthy();
 
-      await user.click(loserItem!);
+      fireEvent.click(loserItem!);
 
       expect(onItemClick).toHaveBeenCalledWith(
         expect.objectContaining({ symbol: 'LOSER' }),
