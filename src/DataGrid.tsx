@@ -7,6 +7,7 @@ import { useColumnResize } from './hooks/useColumnResize';
 import { useSortState } from './hooks/useSortState';
 import { useWasmView } from './hooks/useWasmView';
 import { useSortedData } from './hooks/useSortedData';
+import { useRowExit } from './hooks/useRowExit';
 import { getNestedValue } from './utils/nested';
 
 /**
@@ -187,13 +188,8 @@ export function DataGrid<T extends object>({
   const { sort, handleSort: handleSortBase } = useSortState();
 
   const [filter, setFilter] = useState('');
-  const [, forceUpdate] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-
-  // Leaving rows state for row-exit lifecycle
-  const leavingRowsRef = useRef<Map<string, { row: T; snapshotIndex: number; expiry: number }>>(new Map());
-  const [leavingRowsVersion, setLeavingRowsVersion] = useState(0);
 
   // Adaptive flash monitoring (when enabled)
   const { disableFlash: adaptiveDisable } = useAdaptiveFlash(adaptiveFlash);
@@ -268,35 +264,14 @@ export function DataGrid<T extends object>({
     shouldVirtualize,
   });
 
-  // Track previous sortedData for row-exit diff
-  const prevSortedDataRef = useRef<T[]>([]);
-
-  // Build merged view: sortedData + leaving rows at their snapshot positions
-  const mergedData = useMemo(() => {
-    if (rowExitDuration === 0 || leavingRowsRef.current.size === 0) {
-      // Zero-cost passthrough: wrap in {row, isLeaving: false} for consistency
-      return sortedData.map((row) => ({ row, isLeaving: false }));
-    }
-
-    // Start with sortedData
-    const result: Array<{ row: T; isLeaving: boolean }> = sortedData.map((row) => ({
-      row,
-      isLeaving: false,
-    }));
-
-    // Splice leaving rows back in at their snapshot positions
-    const leavingEntries = Array.from(leavingRowsRef.current.values()).sort(
-      (a, b) => a.snapshotIndex - b.snapshotIndex
-    );
-
-    leavingEntries.forEach((entry) => {
-      // Clamp index to [0, result.length] to handle edge cases
-      const index = Math.max(0, Math.min(entry.snapshotIndex, result.length));
-      result.splice(index, 0, { row: entry.row, isLeaving: true });
-    });
-
-    return result;
-  }, [sortedData, rowExitDuration, leavingRowsVersion]);
+  // Row-exit lifecycle (leaving rows + cleanup)
+  const { mergedData, leavingRowsSize, clearLeaving } = useRowExit({
+    sortedData,
+    rowExitDuration,
+    getRowKey,
+    filter,
+    columnOrder,
+  });
 
   // Flash detection (lazy, per visible row during render)
   const { updateFlashForRow, getCellFlashClass } = useFlashDetection({
@@ -304,107 +279,15 @@ export function DataGrid<T extends object>({
     columns,
   });
 
-  // Periodic cleanup of expired leaving rows
-  useEffect(() => {
-    if (rowExitDuration === 0) return;
-
-    const cleanup = setInterval(() => {
-      const now = Date.now();
-      let cleaned = false;
-
-      leavingRowsRef.current.forEach((entry, key) => {
-        if (entry.expiry <= now) {
-          leavingRowsRef.current.delete(key);
-          cleaned = true;
-        }
-      });
-
-      if (cleaned) {
-        forceUpdate((n) => n + 1);
-        setLeavingRowsVersion((v) => v + 1);
-      }
-    }, 1000); // LEAVING_ROWS_CLEANUP_INTERVAL
-
-    return () => clearInterval(cleanup);
-  }, [rowExitDuration]);
-
-  // Clear leaving rows on filter or columnOrder change (context change)
-  useEffect(() => {
-    if (rowExitDuration > 0 && leavingRowsRef.current.size > 0) {
-      leavingRowsRef.current.clear();
-      setLeavingRowsVersion((v) => v + 1);
-    }
-  }, [filter, columnOrder, rowExitDuration]);
-
-  // Row-exit diff: detect removed rows and populate leavingRowsRef
-  useEffect(() => {
-    // Skip if rowExitDuration is 0 (zero-cost when disabled)
-    if (rowExitDuration === 0) {
-      prevSortedDataRef.current = sortedData;
-      return;
-    }
-
-    const prevData = prevSortedDataRef.current;
-    const currentData = sortedData;
-    prevSortedDataRef.current = currentData;
-
-    // Build sets of current row keys for fast lookup
-    const currentKeys = new Set(currentData.map((row) => getRowKey(row)));
-    const now = Date.now();
-    let changed = false;
-
-    // Detect removed rows (in prev but not in current)
-    prevData.forEach((row, index) => {
-      const key = getRowKey(row);
-      if (!currentKeys.has(key)) {
-        // Row was removed - add to leaving state
-        if (!leavingRowsRef.current.has(key)) {
-          leavingRowsRef.current.set(key, {
-            row,
-            snapshotIndex: index,
-            expiry: now + rowExitDuration,
-          });
-          changed = true;
-        }
-      }
-    });
-
-    // Cancel leaving state for rows that reappeared
-    leavingRowsRef.current.forEach((entry, key) => {
-      if (currentKeys.has(key)) {
-        leavingRowsRef.current.delete(key);
-        changed = true;
-      }
-    });
-
-    // Cap leavingRowsRef at 1000 entries (memory safety)
-    if (leavingRowsRef.current.size > 1000) {
-      const entries = Array.from(leavingRowsRef.current.entries());
-      const toDelete = entries.slice(0, entries.length - 1000);
-      toDelete.forEach(([key]) => {
-        leavingRowsRef.current.delete(key);
-      });
-      changed = true;
-    }
-
-    if (changed) {
-      setLeavingRowsVersion((v) => v + 1);
-    }
-  }, [sortedData, rowExitDuration, getRowKey]);
-
   // R2: Parent orchestrates clearing leaving rows on sort change
   const handleSort = (field: string) => {
     handleSortBase(field);
-    // Clear leaving rows on sort change
-    if (rowExitDuration > 0 && leavingRowsRef.current.size > 0) {
-      leavingRowsRef.current.clear();
-      setLeavingRowsVersion((v) => v + 1);
-    }
+    clearLeaving();
   };
 
   // Virtualizer - use mergedData.length to include leaving rows
   const virtualizer = useVirtualizer({
-    count: shouldVirtualize && wasmCoreReady ? visibleCount + leavingRowsRef.current.size : mergedData.length,
+    count: shouldVirtualize && wasmCoreReady ? visibleCount + leavingRowsSize : mergedData.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => rowHeight,
     overscan: 10,
