@@ -26,6 +26,10 @@ export function useAdaptiveFlash(enabled: boolean = true): AdaptiveFlashResult {
   const consecutiveCountRef = useRef(0);
   const rafRef = useRef<number>();
 
+  // Ref to track current disableFlash state - read inside rAF loop without triggering effect re-runs
+  const disableFlashRef = useRef(disableFlash);
+  disableFlashRef.current = disableFlash; // Keep ref in sync with state
+
   // Stable memoized result when disabled (zero overhead)
   const disabledResult = useMemo(() => ({ disableFlash: false, fps: 0 }), []);
 
@@ -46,19 +50,21 @@ export function useAdaptiveFlash(enabled: boolean = true): AdaptiveFlashResult {
         // Adaptive flash control with hysteresis
         // Disable: FPS < 55 for 2 consecutive seconds
         // Re-enable: FPS >= 58 for 3 consecutive seconds
-        if (currentFps < 55 && !disableFlash) {
+        // Read from ref to get CURRENT state without re-running effect on every toggle
+        if (currentFps < 55 && !disableFlashRef.current) {
           consecutiveCountRef.current++;
           if (consecutiveCountRef.current >= 2) {
             setDisableFlash(true);
             consecutiveCountRef.current = 0;
           }
-        } else if (currentFps >= 58 && disableFlash) {
+        } else if (currentFps >= 58 && disableFlashRef.current) {
           consecutiveCountRef.current++;
           if (consecutiveCountRef.current >= 3) {
             setDisableFlash(false);
             consecutiveCountRef.current = 0;
           }
-        } else if (currentFps >= 55 && !disableFlash) {
+        } else {
+          // Reset counter in all other cases (middle range, or wrong state for current FPS)
           consecutiveCountRef.current = 0;
         }
       }
@@ -70,7 +76,8 @@ export function useAdaptiveFlash(enabled: boolean = true): AdaptiveFlashResult {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [disableFlash, enabled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]); // Removed disableFlash from deps - the rAF loop should survive state transitions
 
   // Return stable memoized result when disabled
   if (!enabled) return disabledResult;

@@ -308,7 +308,11 @@ export function useGridStore<T extends Record<string, unknown>>(
       wasmStoreRef.current = null;
       jsStoreRef.current = null;
     };
-  }, [storeType, schema, batchInterval, visibleRowCount, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeType, batchInterval, visibleRowCount]);
+  // Removed schema/initialData from deps to prevent re-init on fresh-but-equivalent references.
+  // Store initializes once on mount. To reload data, use the loadRows() method.
+  // If schema/storeType must change, remount the component (via key prop).
 
   // Load rows
   const loadRows = useCallback(
