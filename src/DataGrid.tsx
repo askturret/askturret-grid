@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { filterAndSort, isWasmAvailable, type SortDirection as WasmSortDirection } from './wasm';
 import { GridCore } from './wasm/GridCore';
 import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
+import { useFlashDetection } from './hooks/useFlashDetection';
 import { getNestedValue } from './utils/nested';
 
 /**
@@ -148,16 +149,8 @@ interface SortState {
   direction: SortDirection;
 }
 
-interface FlashEntry {
-  direction: 'up' | 'down';
-  expiry: number;
-}
-
-const FLASH_DURATION = 800;
-const FLASH_CLEANUP_INTERVAL = 1000;
 const VIRTUALIZATION_THRESHOLD = 100;
 const WASM_CORE_THRESHOLD = 1000;
-// Flash is now optimized to only track visible rows, so no disable threshold needed
 
 /**
  * High-performance data grid component with virtualization,
@@ -201,9 +194,6 @@ export function DataGrid<T extends object>({
   const headerRef = useRef<HTMLDivElement>(null);
   const gridCoreRef = useRef<GridCore | null>(null);
   const [wasmCoreReady, setWasmCoreReady] = useState(false);
-
-  const flashMapRef = useRef<Map<string, FlashEntry>>(new Map());
-  const prevValuesRef = useRef<Map<string, number>>(new Map());
 
   // Leaving rows state for row-exit lifecycle
   const leavingRowsRef = useRef<Map<string, { row: T; snapshotIndex: number; expiry: number }>>(new Map());
@@ -590,99 +580,35 @@ export function DataGrid<T extends object>({
     return result;
   }, [sortedData, rowExitDuration, leavingRowsVersion]);
 
-  const flashColumns = useMemo(
-    () => columns.filter((col) => col.flashOnChange).map((col) => String(col.field)),
-    [columns]
-  );
+  // Flash detection (lazy, per visible row during render)
+  const { updateFlashForRow, getCellFlashClass } = useFlashDetection({
+    enableFlash,
+    columns,
+  });
 
-  // Flash detection now happens lazily during render (see updateFlashForRow)
-  // This avoids O(n) iteration on every data change
-
-  // Update flash state for a single row (called during render for visible rows only)
-  const updateFlashForRow = useCallback(
-    (row: T, rowId: string): boolean => {
-      if (!enableFlash || flashColumns.length === 0) return false;
-
-      const now = Date.now();
-      let hasNewFlash = false;
-
-      flashColumns.forEach((field) => {
-        const cellKey = `${rowId}-${field}`;
-        const currentValue = getNestedValue(row, field);
-
-        if (typeof currentValue !== 'number') return;
-
-        const prevValue = prevValuesRef.current.get(cellKey);
-        prevValuesRef.current.set(cellKey, currentValue);
-
-        if (prevValue === undefined) return;
-
-        if (currentValue !== prevValue) {
-          flashMapRef.current.set(cellKey, {
-            direction: currentValue > prevValue ? 'up' : 'down',
-            expiry: now + FLASH_DURATION,
-          });
-          hasNewFlash = true;
-        }
-      });
-
-      return hasNewFlash;
-    },
-    [enableFlash, flashColumns]
-  );
-
-  // Periodic cleanup of expired flashes and leaving rows
+  // Periodic cleanup of expired leaving rows
   useEffect(() => {
-    if (!enableFlash && rowExitDuration === 0) return;
+    if (rowExitDuration === 0) return;
 
     const cleanup = setInterval(() => {
       const now = Date.now();
       let cleaned = false;
 
-      // Clean expired flashes
-      if (enableFlash) {
-        flashMapRef.current.forEach((entry, key) => {
-          if (entry.expiry <= now) {
-            flashMapRef.current.delete(key);
-            cleaned = true;
-          }
-        });
-      }
-
-      // Clean expired leaving rows
-      if (rowExitDuration > 0) {
-        leavingRowsRef.current.forEach((entry, key) => {
-          if (entry.expiry <= now) {
-            leavingRowsRef.current.delete(key);
-            cleaned = true;
-          }
-        });
-      }
+      leavingRowsRef.current.forEach((entry, key) => {
+        if (entry.expiry <= now) {
+          leavingRowsRef.current.delete(key);
+          cleaned = true;
+        }
+      });
 
       if (cleaned) {
         forceUpdate((n) => n + 1);
-        if (rowExitDuration > 0) {
-          setLeavingRowsVersion((v) => v + 1);
-        }
+        setLeavingRowsVersion((v) => v + 1);
       }
-    }, FLASH_CLEANUP_INTERVAL);
+    }, 1000); // LEAVING_ROWS_CLEANUP_INTERVAL
 
     return () => clearInterval(cleanup);
-  }, [enableFlash, rowExitDuration]);
-
-  // Limit map sizes to prevent memory leaks (simple LRU-like cleanup)
-  useEffect(() => {
-    const maxEntries = 10000; // Keep at most 10k entries
-    if (prevValuesRef.current.size > maxEntries) {
-      // Clear oldest entries (maps maintain insertion order)
-      const entries = Array.from(prevValuesRef.current.keys());
-      const toDelete = entries.slice(0, entries.length - maxEntries);
-      toDelete.forEach((key) => {
-        prevValuesRef.current.delete(key);
-        flashMapRef.current.delete(key);
-      });
-    }
-  }, [data.length]);
+  }, [rowExitDuration]);
 
   // Clear leaving rows on filter or columnOrder change (context change)
   useEffect(() => {
@@ -800,17 +726,6 @@ export function DataGrid<T extends object>({
       setLeavingRowsVersion((v) => v + 1);
     }
   };
-
-  const getCellFlashClass = useCallback(
-    (rowId: string, field: string): string => {
-      if (!enableFlash) return '';
-      const cellKey = `${rowId}-${field}`;
-      const entry = flashMapRef.current.get(cellKey);
-      if (!entry || entry.expiry <= Date.now()) return '';
-      return entry.direction === 'up' ? 'flash-up' : 'flash-down';
-    },
-    [enableFlash]
-  );
 
   // Virtualizer - use mergedData.length to include leaving rows
   const virtualizer = useVirtualizer({
