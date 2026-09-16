@@ -101,13 +101,7 @@ Based on lessons from QA on #34/#35, all tests must meet these criteria:
 
 ### Dependencies
 
-Coverage requires the `@vitest/coverage-v8` package:
-
-```bash
-npm install --save-dev @vitest/coverage-v8
-```
-
-This should be installed automatically when running coverage scripts.
+Vitest 2.x automatically installs the coverage provider (`@vitest/coverage-v8`) on demand when you run coverage scripts. No manual installation required.
 
 ### CI Integration
 
