@@ -195,12 +195,19 @@ export function DataGrid<T extends object>({
   const { disableFlash: adaptiveDisable } = useAdaptiveFlash(adaptiveFlash);
 
   // Column reordering
-  const { columnOrder, orderedColumns, dragging, handleDragStart, handleDragOver, handleDrop, handleDragEnd } =
-    useColumnReorder({
-      columns,
-      controlledOrder,
-      onColumnReorder,
-    });
+  const {
+    columnOrder,
+    orderedColumns,
+    dragging,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+  } = useColumnReorder({
+    columns,
+    controlledOrder,
+    onColumnReorder,
+  });
 
   // Column resizing
   const { columnWidths, resizing, getColumnWidth, handleResizeStart } = useColumnResize({
