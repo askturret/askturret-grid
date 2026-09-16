@@ -32,9 +32,7 @@ describe('WasmGridStore', () => {
   describe('error handling without WASM backend', () => {
     it('throws on loadRows when not initialized', async () => {
       const store = await WasmGridStore.create(schema);
-      const data = [
-        { id: 'row1', symbol: 'AAPL', price: 150, quantity: 100 },
-      ];
+      const data = [{ id: 'row1', symbol: 'AAPL', price: 150, quantity: 100 }];
 
       // Should throw because WASM backend is not available
       expect(() => store.loadRows(data)).toThrow('WasmGridStore not initialized');
@@ -227,9 +225,7 @@ describe('WasmGridStore', () => {
 
   describe('schema handling', () => {
     it('handles minimal schema', async () => {
-      const minimalSchema: ColumnSchema[] = [
-        { name: 'id', type: 'string', primaryKey: true },
-      ];
+      const minimalSchema: ColumnSchema[] = [{ name: 'id', type: 'string', primaryKey: true }];
 
       const store = await WasmGridStore.create(minimalSchema);
       expect(store.getColumnNames()).toEqual(['id']);

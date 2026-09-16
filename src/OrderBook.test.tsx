@@ -116,7 +116,7 @@ describe('OrderBook', () => {
 
   describe('price level clicking', () => {
     it('calls onPriceClick with correct price and side for bid', async () => {
-            const onPriceClick = vi.fn();
+      const onPriceClick = vi.fn();
 
       render(<OrderBook data={sampleData} onPriceClick={onPriceClick} />);
 
@@ -131,7 +131,7 @@ describe('OrderBook', () => {
     });
 
     it('calls onPriceClick with correct price and side for ask', async () => {
-            const onPriceClick = vi.fn();
+      const onPriceClick = vi.fn();
 
       render(<OrderBook data={sampleData} onPriceClick={onPriceClick} />);
 

@@ -120,9 +120,7 @@ describe('TopMovers', () => {
     });
 
     it('updates rankings after interval expires', () => {
-      const initialData: MoverItem[] = [
-        { id: '1', symbol: 'A', price: 100, change: 10, changePercent: 10 },
-      ];
+      const initialData: MoverItem[] = [{ id: '1', symbol: 'A', price: 100, change: 10, changePercent: 10 }];
 
       const { rerender } = render(<TopMovers data={initialData} updateInterval={5000} />);
 
@@ -158,9 +156,7 @@ describe('TopMovers', () => {
       vi.advanceTimersByTime(5000);
 
       // Change data mid-interval
-      const newData: MoverItem[] = [
-        { id: '2', symbol: 'NEW', price: 100, change: 20, changePercent: 20 },
-      ];
+      const newData: MoverItem[] = [{ id: '2', symbol: 'NEW', price: 100, change: 20, changePercent: 20 }];
 
       rerender(<TopMovers data={newData} updateInterval={10000} />);
 
@@ -169,9 +165,7 @@ describe('TopMovers', () => {
     });
 
     it('respects custom update interval', () => {
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'FAST', price: 100, change: 10, changePercent: 10 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'FAST', price: 100, change: 10, changePercent: 10 }];
 
       render(<TopMovers data={data} updateInterval={1000} />);
 
@@ -215,9 +209,7 @@ describe('TopMovers', () => {
     });
 
     it('clears flash after FLASH_DURATION', () => {
-      const initialData: MoverItem[] = [
-        { id: '1', symbol: 'A', price: 100, change: 10, changePercent: 10 },
-      ];
+      const initialData: MoverItem[] = [{ id: '1', symbol: 'A', price: 100, change: 10, changePercent: 10 }];
 
       const { rerender } = render(<TopMovers data={initialData} updateInterval={5000} />);
 
@@ -225,9 +217,7 @@ describe('TopMovers', () => {
       vi.advanceTimersByTime(5000);
 
       // Change rankings
-      const newData: MoverItem[] = [
-        { id: '1', symbol: 'A', price: 100, change: 20, changePercent: 20 },
-      ];
+      const newData: MoverItem[] = [{ id: '1', symbol: 'A', price: 100, change: 20, changePercent: 20 }];
 
       rerender(<TopMovers data={newData} updateInterval={5000} />);
 
@@ -247,9 +237,7 @@ describe('TopMovers', () => {
     });
 
     it('does not flash on first ranking update (no previous rank)', () => {
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'NEW', price: 100, change: 10, changePercent: 10 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'NEW', price: 100, change: 10, changePercent: 10 }];
 
       render(<TopMovers data={data} updateInterval={5000} />);
 
@@ -288,11 +276,9 @@ describe('TopMovers', () => {
 
   describe('item click callback', () => {
     it('calls onItemClick with gainer item and type', async () => {
-            const onItemClick = vi.fn();
+      const onItemClick = vi.fn();
 
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'GAINER', price: 100, change: 10, changePercent: 10 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'GAINER', price: 100, change: 10, changePercent: 10 }];
 
       render(<TopMovers data={data} onItemClick={onItemClick} />);
 
@@ -301,18 +287,13 @@ describe('TopMovers', () => {
 
       fireEvent.click(gainerItem!);
 
-      expect(onItemClick).toHaveBeenCalledWith(
-        expect.objectContaining({ symbol: 'GAINER' }),
-        'gainer'
-      );
+      expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ symbol: 'GAINER' }), 'gainer');
     });
 
     it('calls onItemClick with loser item and type', async () => {
-            const onItemClick = vi.fn();
+      const onItemClick = vi.fn();
 
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'LOSER', price: 100, change: -10, changePercent: -10 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'LOSER', price: 100, change: -10, changePercent: -10 }];
 
       render(<TopMovers data={data} onItemClick={onItemClick} />);
 
@@ -321,10 +302,7 @@ describe('TopMovers', () => {
 
       fireEvent.click(loserItem!);
 
-      expect(onItemClick).toHaveBeenCalledWith(
-        expect.objectContaining({ symbol: 'LOSER' }),
-        'loser'
-      );
+      expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ symbol: 'LOSER' }), 'loser');
     });
 
     it('does not add clickable class when callback not provided', () => {
@@ -337,9 +315,7 @@ describe('TopMovers', () => {
 
   describe('display options', () => {
     it('shows price when showPrice is true', () => {
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'PRICED', price: 123.45, change: 10, changePercent: 10 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'PRICED', price: 123.45, change: 10, changePercent: 10 }];
 
       render(<TopMovers data={data} showPrice={true} />);
 
@@ -357,9 +333,7 @@ describe('TopMovers', () => {
     });
 
     it('shows absolute change when showChange is true', () => {
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'CHG', price: 100, change: 5.25, changePercent: 5.25 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'CHG', price: 100, change: 5.25, changePercent: 5.25 }];
 
       render(<TopMovers data={data} showChange={true} />);
 
@@ -367,9 +341,7 @@ describe('TopMovers', () => {
     });
 
     it('hides absolute change when showChange is false', () => {
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'NOCHG', price: 100, change: 5.25, changePercent: 5.25 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'NOCHG', price: 100, change: 5.25, changePercent: 5.25 }];
 
       render(<TopMovers data={data} showChange={false} />);
 
@@ -378,9 +350,7 @@ describe('TopMovers', () => {
     });
 
     it('respects custom priceDecimals', () => {
-      const data: MoverItem[] = [
-        { id: '1', symbol: 'DEC', price: 123.456789, change: 1, changePercent: 1 },
-      ];
+      const data: MoverItem[] = [{ id: '1', symbol: 'DEC', price: 123.456789, change: 1, changePercent: 1 }];
 
       render(<TopMovers data={data} showPrice={true} priceDecimals={4} />);
 
