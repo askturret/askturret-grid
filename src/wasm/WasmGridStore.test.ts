@@ -120,12 +120,15 @@ describe('WasmGridStore', () => {
       const callback = vi.fn();
 
       const unsubscribe = store.onViewChange(callback);
+      // Verify listener was added by checking internal state
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.size).toBe(1);
+
       unsubscribe();
 
-      // After unsubscribe, calling setFilter should not trigger callback
-      // (even though setFilter is no-op without backend, the pattern is tested)
-      store.setFilter('test');
-      expect(callback).not.toHaveBeenCalled();
+      // Verify listener was removed
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.size).toBe(0);
     });
 
     it('allows multiple listeners', async () => {
@@ -150,10 +153,23 @@ describe('WasmGridStore', () => {
       const unsubscribe1 = store.onViewChange(callback1);
       store.onViewChange(callback2);
 
+      // Verify both listeners were added
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.size).toBe(2);
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.has(callback1)).toBe(true);
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.has(callback2)).toBe(true);
+
       unsubscribe1();
 
-      // callback1 should be removed, callback2 should remain
-      // (Can't verify notification without backend, but subscription/unsubscription tested)
+      // Verify callback1 was removed but callback2 remains
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.size).toBe(1);
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.has(callback1)).toBe(false);
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.has(callback2)).toBe(true);
     });
   });
 
@@ -174,12 +190,16 @@ describe('WasmGridStore', () => {
       const callback = vi.fn();
 
       store.onViewChange(callback);
+
+      // Verify listener was added
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.size).toBe(1);
+
       store.dispose();
 
-      // After dispose, listeners should be cleared
-      // Verify by trying operations that would normally notify
-      store.setFilter('test');
-      expect(callback).not.toHaveBeenCalled();
+      // Verify all listeners were cleared
+      // @ts-expect-error - accessing private property for test
+      expect(store.listeners.size).toBe(0);
     });
 
     it('sets backend to null after dispose', async () => {

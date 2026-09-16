@@ -27,14 +27,11 @@ describe('OrderBook', () => {
 
   describe('spread calculation', () => {
     it('calculates spread from bid/ask prices when not provided', () => {
-      const { rerender } = render(<OrderBook data={sampleData} />);
+      render(<OrderBook data={sampleData} showSpread={true} />);
 
       // Spread should be ask[0].price - bid[0].price = 101 - 100 = 1
-      // We can't directly access the spread value, but we can verify it renders
-      rerender(<OrderBook data={sampleData} showSpread={true} />);
-
-      // The component should render without errors
-      expect(screen.getByText('100.00')).toBeInTheDocument(); // Highest bid
+      // Spread % = (1 / 100) * 100 = 1%
+      expect(screen.getByText(/1\.00 \(1\.00%\)/)).toBeInTheDocument();
     });
 
     it('uses provided spread value when available', () => {
@@ -45,8 +42,9 @@ describe('OrderBook', () => {
 
       render(<OrderBook data={dataWithSpread} showSpread={true} />);
 
-      // Should render without errors
-      expect(screen.getByText('100.00')).toBeInTheDocument();
+      // Should use the provided spread value (2.5)
+      // Spread % = (2.5 / 100) * 100 = 2.5%
+      expect(screen.getByText(/2\.50 \(2\.50%\)/)).toBeInTheDocument();
     });
 
     it('calculates spread percent correctly', () => {
@@ -54,8 +52,8 @@ describe('OrderBook', () => {
       // Spread % = (1 / 100) * 100 = 1%
       render(<OrderBook data={sampleData} showSpread={true} />);
 
-      // Should not throw
-      expect(screen.getByText('100.00')).toBeInTheDocument();
+      // Verify the rendered spread includes both absolute and percentage
+      expect(screen.getByText(/1\.00 \(1\.00%\)/)).toBeInTheDocument();
     });
 
     it('handles zero spread', () => {
@@ -66,7 +64,8 @@ describe('OrderBook', () => {
 
       render(<OrderBook data={dataWithZeroSpread} showSpread={true} />);
 
-      expect(screen.getAllByText('100.00')).toHaveLength(2); // Both bid and ask at same price
+      // Zero spread: 0.00 (0.00%)
+      expect(screen.getByText(/0\.00 \(0\.00%\)/)).toBeInTheDocument();
     });
 
     it('handles missing bids or asks', () => {
@@ -75,9 +74,10 @@ describe('OrderBook', () => {
         asks: [],
       };
 
-      render(<OrderBook data={dataWithOnlyBids} />);
+      render(<OrderBook data={dataWithOnlyBids} showSpread={true} />);
 
-      expect(screen.getByText('100.00')).toBeInTheDocument();
+      // No asks means spread is 0
+      expect(screen.getByText(/0\.00 \(0\.00%\)/)).toBeInTheDocument();
     });
   });
 
