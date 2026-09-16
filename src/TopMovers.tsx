@@ -8,7 +8,7 @@
  * - Designed as a compact widget alongside main grids
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { formatPrice } from './utils/formatters';
 
 export interface MoverItem {
@@ -77,17 +77,30 @@ export function TopMovers({
   const prevGainersRef = useRef<Map<string, number>>(new Map());
   const prevLosersRef = useRef<Map<string, number>>(new Map());
 
+  // Store current props in refs so interval callback uses latest values
+  const dataRef = useRef(data);
+  const gainersCountRef = useRef(gainersCount);
+  const losersCountRef = useRef(losersCount);
+
+  // Update refs when props change
+  useEffect(() => {
+    dataRef.current = data;
+    gainersCountRef.current = gainersCount;
+    losersCountRef.current = losersCount;
+  }, [data, gainersCount, losersCount]);
+
   // Flash state
   const [flashedItems, setFlashedItems] = useState<Set<string>>(new Set());
 
-  // Calculate rankings from current data
-  const calculateRankings = useMemo(() => {
-    return () => {
-      const sorted = [...data].sort((a, b) => b.changePercent - a.changePercent);
+  // Update rankings on interval
+  useEffect(() => {
+    const updateRankings = () => {
+      // Calculate rankings from current data (use refs to get latest values)
+      const sorted = [...dataRef.current].sort((a, b) => b.changePercent - a.changePercent);
 
       const newGainers: RankedItem[] = sorted
         .filter((item) => item.changePercent > 0)
-        .slice(0, gainersCount)
+        .slice(0, gainersCountRef.current)
         .map((item, index) => ({
           ...item,
           rank: index + 1,
@@ -97,35 +110,26 @@ export function TopMovers({
       const newLosers: RankedItem[] = sorted
         .filter((item) => item.changePercent < 0)
         .reverse()
-        .slice(0, losersCount)
+        .slice(0, losersCountRef.current)
         .map((item, index) => ({
           ...item,
           rank: index + 1,
           previousRank: prevLosersRef.current.get(item.id),
         }));
 
-      return { newGainers, newLosers };
-    };
-  }, [data, gainersCount, losersCount]);
-
-  // Update rankings on interval
-  useEffect(() => {
-    const updateRankings = () => {
-      const { newGainers, newLosers } = calculateRankings();
-
       // Detect ranking changes for flash
       const newFlashed = new Set<string>();
 
       for (const item of newGainers) {
         const prevRank = prevGainersRef.current.get(item.id);
-        if (prevRank === undefined || prevRank !== item.rank) {
+        if (prevRank !== undefined && prevRank !== item.rank) {
           newFlashed.add(`gainer-${item.id}`);
         }
       }
 
       for (const item of newLosers) {
         const prevRank = prevLosersRef.current.get(item.id);
-        if (prevRank === undefined || prevRank !== item.rank) {
+        if (prevRank !== undefined && prevRank !== item.rank) {
           newFlashed.add(`loser-${item.id}`);
         }
       }
@@ -156,7 +160,8 @@ export function TopMovers({
     // Periodic updates
     const interval = setInterval(updateRankings, updateInterval);
     return () => clearInterval(interval);
-  }, [calculateRankings, updateInterval]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateInterval]);
 
   const renderItem = (item: RankedItem, type: 'gainer' | 'loser') => {
     const key = `${type}-${item.id}`;
