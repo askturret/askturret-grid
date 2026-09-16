@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { filterAndSort, isWasmAvailable, type SortDirection as WasmSortDirection } from './wasm';
-import { GridCore } from './wasm/GridCore';
 import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
 import { useFlashDetection } from './hooks/useFlashDetection';
 import { useColumnReorder } from './hooks/useColumnReorder';
 import { useColumnResize } from './hooks/useColumnResize';
 import { useSortState } from './hooks/useSortState';
+import { useWasmView } from './hooks/useWasmView';
 import { getNestedValue } from './utils/nested';
 
 /**
@@ -190,8 +190,6 @@ export function DataGrid<T extends object>({
   const [, forceUpdate] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-  const gridCoreRef = useRef<GridCore | null>(null);
-  const [wasmCoreReady, setWasmCoreReady] = useState(false);
 
   // Leaving rows state for row-exit lifecycle
   const leavingRowsRef = useRef<Map<string, { row: T; snapshotIndex: number; expiry: number }>>(new Map());
@@ -239,68 +237,14 @@ export function DataGrid<T extends object>({
     return data.length > WASM_CORE_THRESHOLD;
   }, [useWasmCore, data.length]);
 
-  // Initialize GridCore when needed
-  useEffect(() => {
-    if (!shouldUseWasmCore) {
-      if (gridCoreRef.current) {
-        gridCoreRef.current.dispose();
-        gridCoreRef.current = null;
-        setWasmCoreReady(false);
-      }
-      return;
-    }
-
-    let mounted = true;
-
-    async function init() {
-      if (gridCoreRef.current) return;
-
-      const core = new GridCore();
-      const success = await core.init();
-      if (mounted && success) {
-        gridCoreRef.current = core;
-        setWasmCoreReady(true);
-        console.log('[DataGrid] WASM GridCore initialized successfully');
-      } else if (mounted) {
-        console.warn('[DataGrid] WASM GridCore failed to initialize, using JS fallback');
-      }
-    }
-
-    init();
-
-    return () => {
-      mounted = false;
-      if (gridCoreRef.current) {
-        gridCoreRef.current.dispose();
-        gridCoreRef.current = null;
-      }
-    };
-  }, [shouldUseWasmCore]);
-
-  // Track previous row count to detect structural changes
-  const prevRowCountRef = useRef<number>(0);
-
-  // Track previous sortedData for row-exit diff
-  const prevSortedDataRef = useRef<T[]>([]);
-
-  // Sync data to GridCore when structure changes (not on every value update)
-  useEffect(() => {
-    if (!wasmCoreReady || !gridCoreRef.current) return;
-
-    // Only rebuild index when row count changes (structural change)
-    // This avoids rebuilding trigram index on every price tick
-    if (data.length === prevRowCountRef.current) {
-      return;
-    }
-    prevRowCountRef.current = data.length;
-
-    // Convert row-major data to column-major for GridCore
-    // Always send ALL columns so sorting works on any column
-    const allFields = columns.map((c) => String(c.field));
-    const columnData: unknown[][] = allFields.map((field) => data.map((row) => getNestedValue(row, field)));
-
-    gridCoreRef.current.setData(columnData);
-  }, [data, columns, filterFields, wasmCoreReady]);
+  // WASM view (GridCore integration)
+  const { wasmCoreReady, wasmIndices } = useWasmView({
+    data,
+    columns,
+    filter,
+    sort,
+    shouldUseWasmCore,
+  });
 
   const getRowKey = useCallback(
     (row: T): string => {
@@ -312,30 +256,8 @@ export function DataGrid<T extends object>({
     [rowKey]
   );
 
-  // Compute WASM indices in useMemo so they're available during render (not after)
-  const wasmIndices = useMemo(() => {
-    if (!wasmCoreReady || !gridCoreRef.current) {
-      return null;
-    }
-
-    // Set filter
-    gridCoreRef.current.setFilter(filter);
-
-    // Set sort - find column index in ALL columns (matches setData order)
-    if (sort.field && sort.direction) {
-      const allFields = columns.map((c) => String(c.field));
-      const sortColIndex = allFields.findIndex((f) => f === sort.field);
-      if (sortColIndex >= 0) {
-        gridCoreRef.current.setSort(sortColIndex, sort.direction);
-      } else {
-        gridCoreRef.current.setSort(-1, null);
-      }
-    } else {
-      gridCoreRef.current.setSort(-1, null);
-    }
-
-    return gridCoreRef.current.getView();
-  }, [filter, sort, columns, wasmCoreReady, data.length]);
+  // Track previous sortedData for row-exit diff
+  const prevSortedDataRef = useRef<T[]>([]);
 
   // sortedData for non-virtualized mode (still needed for table rendering)
   // For virtualized mode, we use getRowAtIndex directly
