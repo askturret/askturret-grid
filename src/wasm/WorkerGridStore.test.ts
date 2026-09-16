@@ -1,8 +1,72 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WorkerGridStore } from './WorkerGridStore';
 import type { ColumnSchema } from './WasmGridStore';
 
 describe('WorkerGridStore', () => {
+  let mockCreateObjectURL: ReturnType<typeof vi.fn>;
+  let mockRevokeObjectURL: ReturnType<typeof vi.fn>;
+  let mockWorker: {
+    postMessage: ReturnType<typeof vi.fn>;
+    terminate: ReturnType<typeof vi.fn>;
+    onmessage: ((e: MessageEvent) => void) | null;
+    onerror: ((e: ErrorEvent) => void) | null;
+  };
+  let WorkerConstructor: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    // Mock URL.createObjectURL/revokeObjectURL
+    mockCreateObjectURL = vi.fn().mockReturnValue('blob:mock-worker-url');
+    mockRevokeObjectURL = vi.fn();
+    global.URL.createObjectURL = mockCreateObjectURL;
+    global.URL.revokeObjectURL = mockRevokeObjectURL;
+
+    // Mock Worker
+    mockWorker = {
+      postMessage: vi.fn((msg) => {
+        // Simulate worker responses
+        setTimeout(() => {
+          if (!mockWorker.onmessage) return;
+
+          if (msg.type === 'init') {
+            mockWorker.onmessage(
+              new MessageEvent('message', {
+                data: { type: 'ready', _requestId: msg._requestId },
+              }),
+            );
+          } else if (msg.type === 'loadRows') {
+            mockWorker.onmessage(
+              new MessageEvent('message', {
+                data: { type: 'loaded', rowCount: msg.rows.length, _requestId: msg._requestId },
+              }),
+            );
+          } else if (msg.type === 'getStats') {
+            mockWorker.onmessage(
+              new MessageEvent('message', {
+                data: {
+                  type: 'stats',
+                  pendingUpdates: 0,
+                  processedUpdates: 0,
+                  lastBatchTime: 0,
+                  _requestId: msg._requestId,
+                },
+              }),
+            );
+          }
+        }, 0);
+      }),
+      terminate: vi.fn(),
+      onmessage: null,
+      onerror: null,
+    };
+
+    WorkerConstructor = vi.fn().mockImplementation(() => mockWorker);
+    global.Worker = WorkerConstructor as unknown as typeof Worker;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('handles concurrent same-type requests independently', async () => {
     // Arrange: Create a store with a simple schema
     const schema: ColumnSchema[] = [
@@ -48,9 +112,7 @@ describe('WorkerGridStore', () => {
 
   it('handles concurrent getStats requests independently', async () => {
     // Arrange
-    const schema: ColumnSchema[] = [
-      { name: 'id', primaryKey: true, indexed: true },
-    ];
+    const schema: ColumnSchema[] = [{ name: 'id', primaryKey: true, indexed: true }];
 
     const store = await WorkerGridStore.create(schema);
 
@@ -79,3 +141,4 @@ describe('WorkerGridStore', () => {
     }
   });
 });
+
