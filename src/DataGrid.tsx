@@ -214,7 +214,6 @@ export function DataGrid<T extends object>({
     headerRef,
   });
 
-
   const rowHeight = rowHeightProp ?? (compact ? 28 : 36);
 
   const shouldVirtualize = useMemo(() => {
