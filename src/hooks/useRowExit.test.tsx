@@ -59,7 +59,7 @@ describe('useRowExit', () => {
     expect(result.current.mergedData.filter((item) => item.isLeaving)).toHaveLength(1);
   });
 
-  it('removes leaving rows after expiry timeout', async () => {
+  it('removes leaving rows after expiry timeout', () => {
     const { result, rerender } = renderHook(
       ({ sortedData }) => useRowExit({ ...defaultParams, sortedData }),
       { initialProps: { sortedData: defaultParams.sortedData } }
@@ -77,16 +77,14 @@ describe('useRowExit', () => {
 
     expect(result.current.leavingRowsSize).toBe(1);
 
-    // Fast-forward past rowExitDuration
+    // Fast-forward past rowExitDuration (cleanup interval fires at 1000ms)
     act(() => {
       vi.advanceTimersByTime(1100);
     });
 
-    // Leaving row should be cleaned up
-    await waitFor(() => {
-      expect(result.current.leavingRowsSize).toBe(0);
-      expect(result.current.mergedData).toHaveLength(2);
-    });
+    // Leaving row should be cleaned up (state update is synchronous after timers advance)
+    expect(result.current.leavingRowsSize).toBe(0);
+    expect(result.current.mergedData).toHaveLength(2);
   });
 
   it('clears leaving rows when filter changes', () => {
@@ -196,7 +194,7 @@ describe('useRowExit', () => {
     expect(result.current.leavingRowsSize).toBe(0);
   });
 
-  it('R4: prevSortedDataRef is written on both branches (early-return and main)', async () => {
+  it('R4: prevSortedDataRef is written on both branches (early-return and main)', () => {
     const { result, rerender } = renderHook(
       ({ sortedData, rowExitDuration }) => useRowExit({ ...defaultParams, sortedData, rowExitDuration }),
       { initialProps: { sortedData: defaultParams.sortedData, rowExitDuration: 0 } }
@@ -220,9 +218,7 @@ describe('useRowExit', () => {
 
     // After flipping, there should be no leaving rows (diff should be clean, not stale)
     // This verifies that prevSortedDataRef was updated even on the early-return branch
-    await waitFor(() => {
-      expect(result.current.leavingRowsSize).toBe(0);
-    });
+    expect(result.current.leavingRowsSize).toBe(0);
   });
 
   it('splices leaving rows at their snapshot positions', () => {
