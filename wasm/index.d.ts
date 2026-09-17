@@ -1,10 +1,10 @@
 /**
  * TypeScript declarations for @askturret/grid-wasm
  *
- * This package provides high-performance WASM acceleration for grid operations:
- * - Sorting (numbers and strings)
- * - Filtering with trigram indexing
+ * High-performance WASM acceleration for @askturret/grid:
+ * - Sorting and filtering with trigram indexing
  * - Incremental data updates
+ * - Real-time grid state management
  */
 
 /**
@@ -24,95 +24,167 @@ export enum SortDir {
 }
 
 /**
- * Column schema for GridStore
+ * Column schema definition
  */
 export interface ColumnSchema {
   name: string;
-  type: 'string' | 'number';
+  type: 'string' | 'number' | 'integer';
+  primaryKey?: boolean;
   indexed?: boolean;
 }
 
 /**
- * High-performance grid data store with sorting, filtering, and search
+ * High-performance grid data store with WASM acceleration
+ *
+ * All data lives in WASM memory. JavaScript only receives indices
+ * and fetches visible rows for rendering.
  */
 export class GridStore {
   /**
    * Create a new GridStore with the given column schema
+   * @param schema Array of column definitions
    */
   constructor(schema: ColumnSchema[]);
 
   /**
-   * Add a row to the store
+   * Load initial rows from JSON array
+   * @returns Number of rows loaded
    */
-  addRow(row: Record<string, string | number | null>): void;
+  loadRows(rows: unknown[]): number;
 
   /**
-   * Update a row at the given index
+   * Insert a single row
+   * @returns Row index
    */
-  updateRow(idx: number, row: Record<string, string | number | null>): void;
+  insert(row: unknown): number;
 
   /**
-   * Remove a row at the given index
+   * Update a row by ID
+   * @param id Primary key value
+   * @param changes Object with changed fields
    */
-  removeRow(idx: number): void;
+  update(id: string, changes: unknown): void;
 
   /**
-   * Get the number of rows
+   * Batch update multiple rows
+   * @param updates Array of update objects with id field
+   * @returns Number of rows updated
+   */
+  batchUpdate(updates: unknown[]): number;
+
+  /**
+   * Delete a row by ID (soft delete)
+   * @param id Primary key value
+   */
+  delete(id: string): void;
+
+  /**
+   * Set filter text (triggers view recomputation)
+   * @param search Search query
+   */
+  setFilter(search: string): void;
+
+  /**
+   * Set sort column and direction
+   * @param column Column name
+   * @param direction Sort direction
+   */
+  setSort(column: string, direction: SortDir): void;
+
+  /**
+   * Clear filter
+   */
+  clearFilter(): void;
+
+  /**
+   * Clear sort
+   */
+  clearSort(): void;
+
+  /**
+   * Get number of rows in current view (after filter)
+   */
+  viewCount(): number;
+
+  /**
+   * Get total row count (before filter)
    */
   rowCount(): number;
 
   /**
-   * Get a row at the given index
+   * Get view indices for virtualized rendering
+   * @param start Starting index
+   * @param count Number of indices to return
+   * @returns Array of row indices in current view
    */
-  getRow(idx: number): Record<string, string | number | null>;
+  viewIndices(start: number, count: number): Uint32Array;
 
   /**
-   * Sort by a column
+   * Get rows by indices
+   * @param indices Array of row indices
+   * @returns JSON array of row objects
    */
-  sort(column: string, direction: SortDir): Uint32Array;
+  getRows(indices: Uint32Array): unknown;
 
   /**
-   * Filter rows by a search query (uses trigram index if available)
+   * Get visible rows for rendering (combines viewIndices + getRows)
+   * @param start Starting index
+   * @param count Number of rows to return
+   * @returns JSON array of row objects
    */
-  filter(query: string): Uint32Array;
+  getVisibleRows(start: number, count: number): unknown;
 
   /**
-   * Filter rows by a numeric range on a column
+   * Get a single cell value
+   * @param row Row index
+   * @param column Column name
    */
-  filterRange(column: string, min: number, max: number): Uint32Array;
+  getCell(row: number, column: string): unknown;
 
   /**
-   * Clear all data
+   * Get column names
+   * @returns Array of column names
    */
-  clear(): void;
+  columnNames(): unknown;
 
   /**
-   * Free the memory used by this store
+   * Free WASM memory
    */
   free(): void;
 }
 
 /**
  * Benchmark: Load N rows into GridStore
+ * @param count Number of rows
+ * @returns Time in milliseconds
  */
 export function bench_store_load(count: number): number;
 
 /**
  * Benchmark: Filter N rows
+ * @param count Number of rows
+ * @returns Time in milliseconds
  */
 export function bench_store_filter(count: number): number;
 
 /**
  * Benchmark: Update N rows M times
+ * @param count Number of rows
+ * @param update_count Number of updates
+ * @returns Time in milliseconds
  */
 export function bench_store_update(count: number, update_count: number): number;
 
 /**
  * Benchmark: Heavy filter with multiple trigram intersections
+ * @param count Number of rows
+ * @returns Time in milliseconds
  */
 export function bench_intersect_heavy_filter(count: number): number;
 
 /**
  * Benchmark: Row matching performance
+ * @param count Number of rows
+ * @returns Time in milliseconds
  */
 export function bench_row_matching(count: number): number;
