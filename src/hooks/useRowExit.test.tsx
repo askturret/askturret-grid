@@ -59,7 +59,7 @@ describe('useRowExit', () => {
     expect(result.current.mergedData.filter((item) => item.isLeaving)).toHaveLength(1);
   });
 
-  it('removes leaving rows after expiry timeout', () => {
+  it('removes leaving rows after expiry timeout', async () => {
     const { result, rerender } = renderHook(
       ({ sortedData }) => useRowExit({ ...defaultParams, sortedData }),
       { initialProps: { sortedData: defaultParams.sortedData } }
@@ -83,7 +83,7 @@ describe('useRowExit', () => {
     });
 
     // Leaving row should be cleaned up
-    waitFor(() => {
+    await waitFor(() => {
       expect(result.current.leavingRowsSize).toBe(0);
       expect(result.current.mergedData).toHaveLength(2);
     });
@@ -196,8 +196,8 @@ describe('useRowExit', () => {
     expect(result.current.leavingRowsSize).toBe(0);
   });
 
-  it('R4: prevSortedDataRef is written on both branches (early-return and main)', () => {
-    const { rerender } = renderHook(
+  it('R4: prevSortedDataRef is written on both branches (early-return and main)', async () => {
+    const { result, rerender } = renderHook(
       ({ sortedData, rowExitDuration }) => useRowExit({ ...defaultParams, sortedData, rowExitDuration }),
       { initialProps: { sortedData: defaultParams.sortedData, rowExitDuration: 0 } }
     );
@@ -220,7 +220,7 @@ describe('useRowExit', () => {
 
     // After flipping, there should be no leaving rows (diff should be clean, not stale)
     // This verifies that prevSortedDataRef was updated even on the early-return branch
-    waitFor(() => {
+    await waitFor(() => {
       expect(result.current.leavingRowsSize).toBe(0);
     });
   });
@@ -300,9 +300,9 @@ describe('useRowExit', () => {
 
     expect(result.current.leavingRowsSize).toBe(1);
 
-    // Trigger the same removal again (no change)
+    // Trigger the same removal again with a new array reference (same content)
     act(() => {
-      rerender({ sortedData: newData });
+      rerender({ sortedData: [...newData] });
     });
 
     // Should still be 1 (no duplicate)
