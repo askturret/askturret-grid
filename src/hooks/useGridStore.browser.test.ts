@@ -36,7 +36,9 @@ describe('useGridStore (Browser - Real Worker API)', () => {
     expect(result.current.rowCount).toBe(1);
   });
 
-  it('does not re-initialize when fresh-but-equivalent schema/initialData are passed (real Worker)', async () => {
+  it(
+    'does not re-initialize when fresh-but-equivalent schema/initialData are passed (real Worker)',
+    async () => {
     const createSchema = (): ColumnSchema[] => [
       { name: 'id', primaryKey: true, indexed: true },
       { name: 'value', primaryKey: false, indexed: false },
@@ -132,8 +134,8 @@ describe('useGridStore (Browser - Real Worker API)', () => {
     // Wait for initialization
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Load data via the hook
-    await result.current.loadData([
+    // Load data via the hook (correct method name is loadRows)
+    await result.current.loadRows([
       { id: '1', name: 'Alice' },
       { id: '2', name: 'Bob' },
       { id: '3', name: 'Charlie' },
