@@ -739,10 +739,19 @@ impl GridStore {
             return true;
         }
 
+        // Pre-process filter once per row (not per column)
+        // ASCII filters use byte-level fast path (zero allocation)
+        // Non-ASCII filters need char collection (done once here, not per column)
+        let filter_chars_cache: Option<Vec<char>> = if !filter.is_ascii() {
+            Some(filter.chars().collect())
+        } else {
+            None
+        };
+
         // Check indexed columns
         for &col_idx in &self.indexed_columns {
             if let Some(text) = self.columns[col_idx].data.get_string(row_idx) {
-                if Self::contains_case_insensitive(text, filter) {
+                if Self::contains_case_insensitive(text, filter, filter_chars_cache.as_deref()) {
                     return true;
                 }
             }
@@ -753,15 +762,16 @@ impl GridStore {
 
     /// Case-insensitive substring search with minimal allocation
     /// filter MUST already be lowercased
+    /// filter_chars_cache: Pre-collected filter chars for non-ASCII filters (avoids re-collecting per column)
     ///
     /// Uses ASCII fast path for common case (trading/finance data is typically ASCII-heavy),
     /// falls back to full Unicode char-by-char comparison only when needed.
-    fn contains_case_insensitive(text: &str, filter: &str) -> bool {
+    fn contains_case_insensitive(text: &str, filter: &str, filter_chars_cache: Option<&[char]>) -> bool {
         if filter.is_empty() {
             return true;
         }
 
-        // Fast path: both strings are ASCII - use byte-level comparison
+        // Fast path: both strings are ASCII - use byte-level comparison (zero allocation)
         if text.is_ascii() && filter.is_ascii() {
             // ASCII lowercase comparison via bytes - zero allocation
             let text_bytes = text.as_bytes();
@@ -779,8 +789,8 @@ impl GridStore {
         }
 
         // Slow path: non-ASCII text requires proper Unicode handling
-        // Collect filter chars once (not per row) - caller should cache this, but we can't change API
-        let filter_chars: Vec<char> = filter.chars().collect();
+        // Use pre-collected filter_chars from cache (collected once per row, not per column)
+        let filter_chars = filter_chars_cache.expect("Non-ASCII filter should have chars pre-collected");
 
         // Iterator-based approach to avoid allocating full text_chars vec
         // Collect lowercased chars only as we scan
@@ -792,7 +802,7 @@ impl GridStore {
             let mut candidate = text_iter.clone();
             let mut matched = true;
 
-            for &filter_char in &filter_chars {
+            for &filter_char in filter_chars {
                 match candidate.next() {
                     Some(text_char) if text_char == filter_char => continue,
                     _ => {
@@ -1264,21 +1274,23 @@ mod tests {
 
     #[test]
     fn test_contains_case_insensitive() {
-        // Basic ASCII
-        assert!(GridStore::contains_case_insensitive("Hello World", "world"));
-        assert!(GridStore::contains_case_insensitive("UPPERCASE", "upper"));
-        assert!(GridStore::contains_case_insensitive("MixedCase", "mixed"));
+        // Basic ASCII (uses fast path, no cache needed)
+        assert!(GridStore::contains_case_insensitive("Hello World", "world", None));
+        assert!(GridStore::contains_case_insensitive("UPPERCASE", "upper", None));
+        assert!(GridStore::contains_case_insensitive("MixedCase", "mixed", None));
 
         // Not found
-        assert!(!GridStore::contains_case_insensitive("hello", "world"));
+        assert!(!GridStore::contains_case_insensitive("hello", "world", None));
 
         // Empty filter
-        assert!(GridStore::contains_case_insensitive("anything", ""));
+        assert!(GridStore::contains_case_insensitive("anything", "", None));
 
-        // CJK
-        assert!(GridStore::contains_case_insensitive("上海市", "上海"));
+        // CJK (non-ASCII, needs char cache)
+        let cjk_filter_chars: Vec<char> = "上海".chars().collect();
+        assert!(GridStore::contains_case_insensitive("上海市", "上海", Some(&cjk_filter_chars)));
 
-        // Emoji
-        assert!(GridStore::contains_case_insensitive("Hello 👋 World", "👋"));
+        // Emoji (non-ASCII, needs char cache)
+        let emoji_filter_chars: Vec<char> = "👋".chars().collect();
+        assert!(GridStore::contains_case_insensitive("Hello 👋 World", "👋", Some(&emoji_filter_chars)));
     }
 }
