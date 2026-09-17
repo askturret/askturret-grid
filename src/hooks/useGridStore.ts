@@ -56,6 +56,8 @@ export interface GridStoreResult<T> {
   rowCount: number;
   /** Filtered row count */
   viewCount: number;
+  /** Index of the first row of `data` in the full filtered view. Always 0 for wasm/js engines. */
+  startIndex: number;
   /** Current filter text */
   filter: string;
   /** Current sort state */
@@ -230,6 +232,7 @@ export function useGridStore<T extends Record<string, unknown>>(
   const [data, setData] = useState<T[]>([]);
   const [rowCount, setRowCount] = useState(0);
   const [viewCount, setViewCount] = useState(0);
+  const [startIndex, setStartIndex] = useState(0);
   const [filter, setFilterState] = useState('');
   const [sort, setSortState] = useState<{ field: string | null; direction: SortDirection }>({
     field: null,
@@ -257,8 +260,9 @@ export function useGridStore<T extends Record<string, unknown>>(
             workerStoreRef.current = store;
 
             // Subscribe to updates
-            store.onVisibleRowsChange((rows) => {
+            store.onVisibleRowsChange((rows, startIdx) => {
               setData(rows);
+              setStartIndex(startIdx);
             });
             store.onViewCountChange((vc, tc) => {
               setViewCount(vc);
@@ -520,6 +524,7 @@ export function useGridStore<T extends Record<string, unknown>>(
     storeType,
     rowCount,
     viewCount,
+    startIndex,
     filter,
     sort,
     loadRows,

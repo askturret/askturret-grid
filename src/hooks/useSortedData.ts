@@ -17,6 +17,10 @@ export interface UseSortedDataParams<T> {
   wasmIndices: number[] | null;
   shouldVirtualize: boolean;
   passthrough?: boolean;
+  /** Total view size when data is a slice (worker store controlled mode) */
+  rowCount?: number;
+  /** Absolute index of data[0] in the full view (worker store controlled mode) */
+  viewportStart?: number;
 }
 
 export interface UseSortedDataReturn<T> {
@@ -49,10 +53,19 @@ export function useSortedData<T>({
   wasmIndices,
   shouldVirtualize,
   passthrough = false,
+  rowCount,
+  viewportStart,
 }: UseSortedDataParams<T>): UseSortedDataReturn<T> {
+  // Slice mode: data is a viewport slice of a larger view (worker store controlled mode)
+  const isSliceMode = rowCount !== undefined && viewportStart !== undefined;
   // sortedData for non-virtualized mode (still needed for table rendering)
   // For virtualized mode, we use getRowAtIndex directly
   const sortedData = useMemo(() => {
+    // Slice mode: data is a viewport slice, not the full view
+    // Rendering a slice as if it were the whole table is nonsense - return empty
+    if (isSliceMode) {
+      return [] as T[];
+    }
     // Passthrough mode: controlled-by-store — data is already filtered/sorted by the engine
     // Short-circuit to avoid redundant filter+sort pass that could diverge when filterFields
     // is narrower than the store's indexed columns (#32 divergence bug)
@@ -120,11 +133,17 @@ export function useSortedData<T>({
     }
 
     return result;
-  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize, passthrough]);
+  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize, passthrough, isSliceMode]);
 
   // Get row at index - uses WASM indices or direct data access
   const getRowAtIndex = useCallback(
     (index: number): T | undefined => {
+      // Slice mode: map absolute view index to data slice offset
+      // Returns undefined for out-of-slice indices (DataGrid renders placeholder)
+      if (isSliceMode) {
+        const offset = index - (viewportStart ?? 0);
+        return offset >= 0 && offset < data.length ? data[offset] : undefined;
+      }
       // Passthrough mode: data is already in final order, no index mapping needed
       if (passthrough) {
         return data[index];
@@ -135,11 +154,15 @@ export function useSortedData<T>({
       }
       return data[index];
     },
-    [data, wasmCoreReady, wasmIndices, passthrough]
+    [data, wasmCoreReady, wasmIndices, passthrough, isSliceMode, viewportStart]
   );
 
   // Get total visible count
   const visibleCount = useMemo(() => {
+    // Slice mode: use the total row count, not data.length
+    if (isSliceMode) {
+      return rowCount ?? 0;
+    }
     // Passthrough mode: data is already filtered, count is just data.length
     if (passthrough) {
       return data.length;
@@ -164,7 +187,7 @@ export function useSortedData<T>({
         return String(value).toLowerCase().includes(lowerFilter);
       })
     ).length;
-  }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices, passthrough]);
+  }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices, passthrough, isSliceMode, rowCount]);
 
   return {
     sortedData,
