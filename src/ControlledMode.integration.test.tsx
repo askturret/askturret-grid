@@ -105,7 +105,13 @@ describe('Controlled-mode DataGrid integration', () => {
           <button onClick={() => store.clearFilter()}>Clear Filter</button>
           <button onClick={() => store.setSort('price', 'asc')}>Sort Price Asc</button>
           <button onClick={() => store.clearSort()}>Clear Sort</button>
-          <DataGrid data={store.data} columns={columns} rowKey={deriveRowKey(columns)} showFilter {...controlledBy(store)} />
+          <DataGrid
+            data={store.data}
+            columns={columns}
+            rowKey={deriveRowKey(columns)}
+            showFilter
+            {...controlledBy(store)}
+          />
         </div>
       );
     }
@@ -182,7 +188,13 @@ describe('Controlled-mode DataGrid integration', () => {
       return (
         <div>
           <div data-testid="store-filter">{store.filter}</div>
-          <DataGrid data={store.data} columns={columns} rowKey={deriveRowKey(columns)} showFilter {...controlledBy(store)} />
+          <DataGrid
+            data={store.data}
+            columns={columns}
+            rowKey={deriveRowKey(columns)}
+            showFilter
+            {...controlledBy(store)}
+          />
         </div>
       );
     }
