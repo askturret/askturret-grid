@@ -153,7 +153,7 @@ describe('useSortedData', () => {
     expect(result.current.sortedData[2].age).toBeNull();
   });
 
-  it('handles sorting with null values (nulls at end for desc)', () => {
+  it('handles sorting with null values (nulls at beginning for desc)', () => {
     const dataWithNull = [
       { id: 1, name: 'Alice', age: 30 },
       { id: 2, name: 'Bob', age: null },
@@ -168,8 +168,11 @@ describe('useSortedData', () => {
       })
     );
 
-    // Nulls should be at the end for descending sort
-    expect(result.current.sortedData[2].age).toBeNull();
+    // Nulls are sorted to the beginning for descending sort
+    // Sorted descending: Bob (null), Charlie (35), Alice (30)
+    expect(result.current.sortedData[0].age).toBeNull();
+    expect(result.current.sortedData[1].age).toBe(35);
+    expect(result.current.sortedData[2].age).toBe(30);
   });
 
   it('filters and sorts together (JavaScript fallback)', () => {

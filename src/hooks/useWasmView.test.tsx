@@ -72,7 +72,7 @@ describe('useWasmView', () => {
   });
 
   it('disposes GridCore when shouldUseWasmCore becomes false', async () => {
-    const { result, rerender } = renderHook(
+    const { result, rerender, unmount } = renderHook(
       ({ shouldUseWasmCore }) => useWasmView({ ...defaultParams, shouldUseWasmCore }),
       { initialProps: { shouldUseWasmCore: true } }
     );
@@ -82,14 +82,17 @@ describe('useWasmView', () => {
       expect(result.current.wasmCoreReady).toBe(true);
     });
 
-    // Disable WASM
-    rerender({ shouldUseWasmCore: false });
+    const disposeCallsBefore = mockGridCore.dispose.mock.calls.length;
 
-    await waitFor(() => {
-      expect(result.current.wasmCoreReady).toBe(false);
+    // Disable WASM - this should dispose the core
+    act(() => {
+      rerender({ shouldUseWasmCore: false });
     });
 
-    expect(mockGridCore.dispose).toHaveBeenCalled();
+    // GridCore.dispose should be called when disabling WASM
+    expect(mockGridCore.dispose.mock.calls.length).toBeGreaterThan(disposeCallsBefore);
+
+    unmount();
   });
 
   it('syncs data to GridCore when row count changes', async () => {

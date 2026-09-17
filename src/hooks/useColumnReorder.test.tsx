@@ -354,7 +354,11 @@ describe('useColumnReorder', () => {
     let dragEvent = createDragEvent('name');
     act(() => {
       result.current.handleDragStart('name', dragEvent as React.DragEvent);
+    });
+    act(() => {
       result.current.handleDragOver('age', 2, dragEvent as React.DragEvent);
+    });
+    act(() => {
       result.current.handleDrop(dragEvent as React.DragEvent);
     });
 
@@ -364,7 +368,11 @@ describe('useColumnReorder', () => {
     dragEvent = createDragEvent('age');
     act(() => {
       result.current.handleDragStart('age', dragEvent as React.DragEvent);
+    });
+    act(() => {
       result.current.handleDragOver('id', 0, dragEvent as React.DragEvent);
+    });
+    act(() => {
       result.current.handleDrop(dragEvent as React.DragEvent);
     });
 
@@ -379,7 +387,10 @@ describe('useColumnReorder', () => {
     );
 
     const invalidEvent = {
-      dataTransfer: null,
+      dataTransfer: {
+        effectAllowed: 'none',
+        setData: vi.fn(),
+      } as unknown as DataTransfer,
       preventDefault: vi.fn(),
     };
 
@@ -387,5 +398,7 @@ describe('useColumnReorder', () => {
     act(() => {
       result.current.handleDragStart('name', invalidEvent as unknown as React.DragEvent);
     });
+
+    expect(result.current.dragging).toEqual({ field: 'name', targetIndex: null });
   });
 });
