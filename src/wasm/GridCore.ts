@@ -29,17 +29,18 @@ interface WasmIndexedGridState {
 }
 
 interface WasmModule {
-  GridState: new () => WasmGridState;
-  IndexedGridState: new () => WasmIndexedGridState;
-  SortDir: { Asc: 0; Desc: 1; None: 2 };
-  bench_grid_state(count: number): number;
-  bench_filter_only(count: number): number;
-  bench_sort_only(count: number): number;
+  // These may not be available - checked at runtime
+  GridState?: new () => WasmGridState;
+  IndexedGridState?: new () => WasmIndexedGridState;
+  SortDir?: { Asc: 0; Desc: 1; None: 2 };
+  bench_grid_state?: (count: number) => number;
+  bench_filter_only?: (count: number) => number;
+  bench_sort_only?: (count: number) => number;
   // Indexed filter benchmarks
-  bench_indexed_filter_with_build(count: number): number;
-  bench_indexed_filter_only(count: number): number;
-  bench_scan_filter(count: number): number;
-  bench_repeated_filter(count: number, iterations: number): number;
+  bench_indexed_filter_with_build?: (count: number) => number;
+  bench_indexed_filter_only?: (count: number) => number;
+  bench_scan_filter?: (count: number) => number;
+  bench_repeated_filter?: (count: number, iterations: number) => number;
   default(input?: unknown): Promise<unknown>;
 }
 
@@ -62,17 +63,18 @@ export async function initGridCore(): Promise<boolean> {
 
 async function loadWasm(): Promise<WasmModule | null> {
   try {
-    // @ts-expect-error - module may not exist
     const wasm = await import('@askturret/grid-wasm');
     if (wasm.default && typeof wasm.default === 'function') {
       await wasm.default();
     }
+    // Cast to WasmModule to access optional GridState/IndexedGridState properties
+    const wasmTyped = wasm as WasmModule;
     // GridCore requires GridState/IndexedGridState classes which are not in the base WASM package
     // If they don't exist, throw to fall back to JS
-    if (!wasm.GridState || !wasm.IndexedGridState) {
+    if (!wasmTyped.GridState || !wasmTyped.IndexedGridState) {
       throw new Error('GridState classes not available in WASM module');
     }
-    wasmModule = wasm as WasmModule;
+    wasmModule = wasmTyped;
     return wasmModule;
   } catch (e) {
     console.warn('[GridCore] WASM not available:', e);
@@ -91,7 +93,7 @@ export function isGridCoreAvailable(): boolean {
  * Run WASM benchmark (filter + sort with data generation in WASM)
  */
 export function benchGridState(rowCount: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_grid_state) return null;
   return wasmModule.bench_grid_state(rowCount);
 }
 
@@ -99,7 +101,7 @@ export function benchGridState(rowCount: number): number | null {
  * Run WASM benchmark - filter only (search strings pre-built)
  */
 export function benchFilterOnly(rowCount: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_filter_only) return null;
   return wasmModule.bench_filter_only(rowCount);
 }
 
@@ -107,7 +109,7 @@ export function benchFilterOnly(rowCount: number): number | null {
  * Run WASM benchmark - sort only (no filter)
  */
 export function benchSortOnly(rowCount: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_sort_only) return null;
   return wasmModule.bench_sort_only(rowCount);
 }
 
@@ -115,7 +117,7 @@ export function benchSortOnly(rowCount: number): number | null {
  * Run WASM benchmark - indexed filter with index build time
  */
 export function benchIndexedFilterWithBuild(rowCount: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_indexed_filter_with_build) return null;
   return wasmModule.bench_indexed_filter_with_build(rowCount);
 }
 
@@ -123,7 +125,7 @@ export function benchIndexedFilterWithBuild(rowCount: number): number | null {
  * Run WASM benchmark - indexed filter only (index pre-built)
  */
 export function benchIndexedFilterOnly(rowCount: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_indexed_filter_only) return null;
   return wasmModule.bench_indexed_filter_only(rowCount);
 }
 
@@ -131,7 +133,7 @@ export function benchIndexedFilterOnly(rowCount: number): number | null {
  * Run WASM benchmark - scan filter (no index) for comparison
  */
 export function benchScanFilter(rowCount: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_scan_filter) return null;
   return wasmModule.bench_scan_filter(rowCount);
 }
 
@@ -139,7 +141,7 @@ export function benchScanFilter(rowCount: number): number | null {
  * Run WASM benchmark - repeated filtering (simulates user typing)
  */
 export function benchRepeatedFilter(rowCount: number, iterations: number): number | null {
-  if (!wasmModule) return null;
+  if (!wasmModule?.bench_repeated_filter) return null;
   return wasmModule.bench_repeated_filter(rowCount, iterations);
 }
 
@@ -193,7 +195,7 @@ export class GridCore {
    */
   async init(): Promise<boolean> {
     const available = await initGridCore();
-    if (available && wasmModule) {
+    if (available && wasmModule && wasmModule.IndexedGridState) {
       // Use IndexedGridState for trigram-indexed filtering
       this.wasmState = new wasmModule.IndexedGridState();
       return true;

@@ -17,16 +17,17 @@ interface WasmIndexResult {
 
 interface WasmModule {
   default(input?: unknown): Promise<unknown>;
-  sort_numbers(values: Float64Array, direction: number): WasmIndexResult;
-  sort_strings(values: unknown[], direction: number): WasmIndexResult;
-  filter_strings(values: unknown[], search: string, mode: number): WasmIndexResult;
-  filter_range(values: Float64Array, min: number, max: number): WasmIndexResult;
-  bench_sort(count: number): number;
-  bench_filter(count: number): number;
-  bench_trigram(count: number): number;
-  SortDirection: { Asc: 0; Desc: 1 };
-  FilterMode: { Contains: 0; Equals: 1; StartsWith: 2; EndsWith: 3 };
-  TrigramIndex: new (values: unknown[]) => {
+  // These may not be available - checked at runtime
+  sort_numbers?: (values: Float64Array, direction: number) => WasmIndexResult;
+  sort_strings?: (values: unknown[], direction: number) => WasmIndexResult;
+  filter_strings?: (values: unknown[], search: string, mode: number) => WasmIndexResult;
+  filter_range?: (values: Float64Array, min: number, max: number) => WasmIndexResult;
+  bench_sort?: (count: number) => number;
+  bench_filter?: (count: number) => number;
+  bench_trigram?: (count: number) => number;
+  SortDirection?: { Asc: 0; Desc: 1 };
+  FilterMode?: { Contains: 0; Equals: 1; StartsWith: 2; EndsWith: 3 };
+  TrigramIndex?: new (values: unknown[]) => {
     search(query: string): WasmIndexResult;
     len(): number;
   };
@@ -61,7 +62,6 @@ export async function initWasm(wasmUrl?: string): Promise<boolean> {
 async function loadWasmModule(): Promise<WasmModule | null> {
   try {
     // Dynamic import of the WASM package
-    // @ts-expect-error - module may not exist, that's ok
     const wasm = await import('@askturret/grid-wasm');
 
     // Initialize the WASM module with optional custom URL
@@ -205,13 +205,13 @@ function jsFilterRange(values: number[], min: number, max: number): number[] {
 export function sortValues<T>(values: T[], direction: SortDirection = 'asc'): number[] {
   if (wasmModule) {
     // Check if values are numbers
-    if (values.length > 0 && typeof values[0] === 'number') {
+    if (values.length > 0 && typeof values[0] === 'number' && wasmModule.sort_numbers) {
       const floatArr = new Float64Array(values as unknown as number[]);
       const result = wasmModule.sort_numbers(floatArr, directionToNumber(direction));
       const indices = Array.from(result.indices);
       if (result.free) result.free();
       return indices;
-    } else {
+    } else if (wasmModule.sort_strings) {
       // String values
       const result = wasmModule.sort_strings(values as unknown[], directionToNumber(direction));
       const indices = Array.from(result.indices);
@@ -264,7 +264,7 @@ export function sortMultiColumn<T>(columns: T[][], directions: SortDirection[]):
  * Filter values by search string
  */
 export function filterValues<T>(columns: T[][], search: string, mode: FilterMode = 'contains'): number[] {
-  if (wasmModule && columns.length > 0) {
+  if (wasmModule?.filter_strings && columns.length > 0) {
     // Flatten columns for WASM - search across all columns
     // For now, use first column only with WASM (JS fallback handles multiple columns)
     const firstCol = columns[0];
@@ -280,7 +280,7 @@ export function filterValues<T>(columns: T[][], search: string, mode: FilterMode
  * Filter numeric values by range
  */
 export function filterRange(values: number[], min: number = -Infinity, max: number = Infinity): number[] {
-  if (wasmModule) {
+  if (wasmModule?.filter_range) {
     const floatArr = new Float64Array(values);
     const result = wasmModule.filter_range(floatArr, min, max);
     const indices = Array.from(result.indices);
@@ -330,8 +330,8 @@ export function filterAndSort<T>(
  * Run benchmarks (only works when WASM is loaded)
  */
 export function runBenchmarks(count: number = 100000): { sort: number; filter: number } | null {
-  if (!wasmModule) {
-    console.warn('WASM module not loaded, cannot run benchmarks');
+  if (!wasmModule?.bench_sort || !wasmModule?.bench_filter) {
+    console.warn('WASM module not loaded or benchmarks not available');
     return null;
   }
 
