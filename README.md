@@ -132,6 +132,23 @@ All engines perform similarly. Use **JS** for zero dependencies.
 
 [Run benchmarks for your scenario →](https://grid.askturret.com/benchmarks/)
 
+## Next.js / SSR Support
+
+Works seamlessly with Next.js App Router and server-side rendering:
+
+```tsx
+'use client'; // Mark as client component
+
+import { DataGrid } from '@askturret/grid';
+import '@askturret/grid/styles.css';
+
+export default function GridPage() {
+  return <DataGrid data={data} columns={columns} rowKey="id" />;
+}
+```
+
+All grid components are SSR-safe (browser APIs are used in effects only). For detailed patterns and examples, see the **[Next.js Usage Guide](./docs/next-js-usage.md)**.
+
 ## Features
 
 ### Core Grid
