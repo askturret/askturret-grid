@@ -62,17 +62,19 @@ npm run test:coverage:watch
 
 ### Cross-Browser Testing
 
-Browser tests run a subset of the test suite in real browsers using Playwright. This validates that worker-based functionality works correctly across different JavaScript engines.
+Browser tests run a subset of the test suite in real browsers using Playwright. These tests exercise the **REAL Worker API** (no mocks) to validate that worker-based functionality works correctly across different JavaScript engines.
 
 **Current Coverage:**
 - **Browser**: Firefox (non-Chromium engine)
-- **Test Scope**: Worker-related tests (`WorkerGridStore`, `useGridStore`)
+- **Test Scope**: Worker-related tests (`WorkerGridStore.browser.test.ts`, `useGridStore.browser.test.ts`)
 - **CI**: Runs automatically on all PRs
+- **Key Difference from Unit Tests**: Browser tests use the real `Worker` API and real `WorkerGridStore` implementation - no `globalThis.Worker` mocks, no `vi.mock()` on modules under test
 
 **Rationale:**
 - Firefox uses SpiderMonkey JavaScript engine (vs V8 in Chrome/Edge)
-- Worker APIs can have subtle cross-browser differences
-- Validates Web Worker communication patterns work universally
+- Worker APIs can have subtle cross-browser differences in message passing, lifecycle, and error handling
+- Validates Web Worker communication patterns work universally across JS engines
+- Unit tests (`.test.ts` files) use mocks for fast feedback; browser tests (`.browser.test.ts` files) validate real Worker behavior
 
 **Local Testing:**
 ```bash

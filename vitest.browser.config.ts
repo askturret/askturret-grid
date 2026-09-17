@@ -11,11 +11,11 @@ export default defineConfig({
       headless: true,
       screenshotOnFailure: true,
     },
-    // Only run worker-related tests in browser for now
-    // Can be expanded to full suite once stability is confirmed
+    // Only run browser-specific tests that exercise REAL Worker API
+    // These tests do NOT use mocks - they validate actual Worker behavior
     include: [
-      'src/wasm/WorkerGridStore.test.ts',
-      'src/hooks/useGridStore.test.ts',
+      'src/wasm/WorkerGridStore.browser.test.ts',
+      'src/hooks/useGridStore.browser.test.ts',
     ],
     setupFiles: ['./src/test-setup.ts'],
     globals: true,

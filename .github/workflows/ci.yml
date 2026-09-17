@@ -8,13 +8,8 @@ on:
 
 jobs:
   test:
-    name: Test (React ${{ matrix.react }})
+    name: Test
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        react: ['18', '19']
 
     steps:
       - name: Checkout
@@ -29,11 +24,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install React ${{ matrix.react }}
-        run: |
-          if [ "${{ matrix.react }}" = "19" ]; then
-            npm install --save-dev react@^19.0.0 react-dom@^19.0.0 @types/react@^19.0.0 @types/react-dom@^19.0.0
-          fi
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build package
+        run: npm run build
+
+  test-react-19:
+    name: Test React 19
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install React 19
+        run: npm install --save-dev react@^19.0.0 react-dom@^19.0.0 @types/react@^19.0.0 @types/react-dom@^19.0.0
 
       - name: Format check
         run: npm run format:check
