@@ -94,8 +94,8 @@ struct Column {
 // ============================================================================
 
 struct TrigramIndex {
-    // trigram (3 bytes) -> set of row indices
-    index: HashMap<[u8; 3], HashSet<u32>>,
+    // trigram (3 Unicode code points) -> set of row indices
+    index: HashMap<String, HashSet<u32>>,
 }
 
 impl TrigramIndex {
@@ -105,14 +105,20 @@ impl TrigramIndex {
         }
     }
 
-    fn generate_trigrams(text: &str) -> Vec<[u8; 3]> {
+    fn generate_trigrams(text: &str) -> Vec<String> {
         let lower = text.to_lowercase();
-        let bytes = lower.as_bytes();
-        if bytes.len() < 3 {
+        let chars: Vec<char> = lower.chars().collect();
+        if chars.len() < 3 {
             return vec![];
         }
-        (0..bytes.len() - 2)
-            .map(|i| [bytes[i], bytes[i + 1], bytes[i + 2]])
+        (0..chars.len() - 2)
+            .map(|i| {
+                let mut s = String::with_capacity(12); // Max 3 chars * 4 bytes each
+                s.push(chars[i]);
+                s.push(chars[i + 1]);
+                s.push(chars[i + 2]);
+                s
+            })
             .collect()
     }
 
@@ -647,8 +653,8 @@ impl GridStore {
             // Use trigram index for candidates
             let candidates = self.trigram_index.search(&self.view.filter_text);
 
-            if candidates.is_empty() && self.view.filter_text.len() < 3 {
-                // Query too short for trigrams - full scan
+            if candidates.is_empty() && self.view.filter_text.chars().count() < 3 {
+                // Query too short for trigrams (< 3 Unicode chars) - full scan
                 (0..self.row_count as u32)
                     .filter(|&i| {
                         !self.deleted[i as usize] && self.row_matches_filter(i as usize)
@@ -839,4 +845,176 @@ pub fn bench_store_update(count: u32, update_count: u32) -> f64 {
     let start = Date::now();
     store.batch_update(&updates.into()).unwrap();
     Date::now() - start
+}
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_trigrams_ascii() {
+        let trigrams = TrigramIndex::generate_trigrams("hello");
+        assert_eq!(trigrams.len(), 3); // "hel", "ell", "llo"
+        assert!(trigrams.contains(&"hel".to_string()));
+        assert!(trigrams.contains(&"ell".to_string()));
+        assert!(trigrams.contains(&"llo".to_string()));
+    }
+
+    #[test]
+    fn test_generate_trigrams_too_short() {
+        // Less than 3 chars - should return empty
+        assert_eq!(TrigramIndex::generate_trigrams("ab").len(), 0);
+        assert_eq!(TrigramIndex::generate_trigrams("a").len(), 0);
+        assert_eq!(TrigramIndex::generate_trigrams("").len(), 0);
+    }
+
+    #[test]
+    fn test_generate_trigrams_cjk() {
+        // Chinese: "上海" (2 chars, 6 bytes) - too short for trigrams
+        let trigrams = TrigramIndex::generate_trigrams("上海");
+        assert_eq!(trigrams.len(), 0, "2-char CJK should produce no trigrams");
+
+        // Chinese: "北京市" (3 chars, 9 bytes) - should produce 1 trigram
+        let trigrams = TrigramIndex::generate_trigrams("北京市");
+        assert_eq!(trigrams.len(), 1);
+        assert!(trigrams.contains(&"北京市".to_string()));
+
+        // Chinese: "张三李四" (4 chars, 12 bytes) - should produce 2 trigrams
+        let trigrams = TrigramIndex::generate_trigrams("张三李四");
+        assert_eq!(trigrams.len(), 2);
+        assert!(trigrams.contains(&"张三李".to_string()));
+        assert!(trigrams.contains(&"三李四".to_string()));
+    }
+
+    #[test]
+    fn test_generate_trigrams_emoji() {
+        // Emoji: "👋🌍" (2 chars, 8 bytes) - too short for trigrams
+        let trigrams = TrigramIndex::generate_trigrams("👋🌍");
+        assert_eq!(trigrams.len(), 0);
+
+        // Emoji: "👋🌍😀" (3 chars, 12 bytes) - should produce 1 trigram
+        let trigrams = TrigramIndex::generate_trigrams("👋🌍😀");
+        assert_eq!(trigrams.len(), 1);
+        assert!(trigrams.contains(&"👋🌍😀".to_string()));
+    }
+
+    #[test]
+    fn test_generate_trigrams_latin_diacritics() {
+        // "café" (4 chars, 5 bytes - é is 2 bytes)
+        let trigrams = TrigramIndex::generate_trigrams("café");
+        assert_eq!(trigrams.len(), 2);
+        assert!(trigrams.contains(&"caf".to_string()));
+        assert!(trigrams.contains(&"afé".to_string()));
+    }
+
+    #[test]
+    fn test_generate_trigrams_case_insensitive() {
+        // Should lowercase before generating trigrams
+        let trigrams_lower = TrigramIndex::generate_trigrams("hello");
+        let trigrams_upper = TrigramIndex::generate_trigrams("HELLO");
+        let trigrams_mixed = TrigramIndex::generate_trigrams("HeLLo");
+
+        assert_eq!(trigrams_lower, trigrams_upper);
+        assert_eq!(trigrams_lower, trigrams_mixed);
+    }
+
+    #[test]
+    fn test_trigram_index_search_ascii() {
+        let mut index = TrigramIndex::new();
+
+        // Add some rows
+        index.add(0, "hello world");
+        index.add(1, "hello there");
+        index.add(2, "goodbye world");
+
+        // Search for "hello" - should match rows 0 and 1
+        let results = index.search("hello");
+        assert_eq!(results.len(), 2);
+        assert!(results.contains(&0));
+        assert!(results.contains(&1));
+
+        // Search for "world" - should match rows 0 and 2
+        let results = index.search("world");
+        assert_eq!(results.len(), 2);
+        assert!(results.contains(&0));
+        assert!(results.contains(&2));
+
+        // Search for "goodbye" - should match row 2 only
+        let results = index.search("goodbye");
+        assert_eq!(results.len(), 1);
+        assert!(results.contains(&2));
+    }
+
+    #[test]
+    fn test_trigram_index_search_short_query() {
+        let mut index = TrigramIndex::new();
+        index.add(0, "hello world");
+
+        // Query too short (< 3 chars) - should return empty
+        // (caller must do full scan)
+        let results = index.search("hi");
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_trigram_index_search_cjk_short_query() {
+        let mut index = TrigramIndex::new();
+
+        // Add CJK text
+        index.add(0, "上海市");
+        index.add(1, "北京市");
+
+        // Search for 2-char CJK query "上海" (6 bytes, but only 2 chars)
+        // Should return empty because it's too short for trigrams
+        let results = index.search("上海");
+        assert_eq!(results.len(), 0, "2-char CJK query should return empty - caller must full-scan");
+
+        // Search for 3-char CJK query "上海市" (9 bytes, 3 chars)
+        // Should match row 0
+        let results = index.search("上海市");
+        assert_eq!(results.len(), 1);
+        assert!(results.contains(&0));
+    }
+
+    #[test]
+    fn test_trigram_index_remove() {
+        let mut index = TrigramIndex::new();
+
+        index.add(0, "hello");
+        index.add(1, "hello");
+
+        // Both should match
+        let results = index.search("hello");
+        assert_eq!(results.len(), 2);
+
+        // Remove row 0
+        index.remove(0, "hello");
+
+        // Only row 1 should match
+        let results = index.search("hello");
+        assert_eq!(results.len(), 1);
+        assert!(results.contains(&1));
+    }
+
+    #[test]
+    fn test_trigram_index_update() {
+        let mut index = TrigramIndex::new();
+
+        index.add(0, "hello");
+
+        // Should match "hello"
+        assert_eq!(index.search("hello").len(), 1);
+        assert_eq!(index.search("world").len(), 0);
+
+        // Update row 0 from "hello" to "world"
+        index.update(0, "hello", "world");
+
+        // Should now match "world", not "hello"
+        assert_eq!(index.search("hello").len(), 0);
+        assert_eq!(index.search("world").len(), 1);
+    }
 }
