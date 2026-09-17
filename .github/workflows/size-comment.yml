@@ -38,6 +38,15 @@ jobs:
         working-directory: wasm
         run: wasm-pack build --target web --out-dir pkg --release
 
+      - name: Report WASM size
+        run: |
+          WASM_FILE="wasm/pkg/askturret_grid_wasm_bg.wasm"
+          if [ -f "$WASM_FILE" ]; then
+            SIZE=$(stat -f%z "$WASM_FILE" 2>/dev/null || stat -c%s "$WASM_FILE" 2>/dev/null)
+            SIZE_KB=$((SIZE / 1024))
+            echo "::notice::WASM binary size: ${SIZE_KB} KB (${SIZE} bytes)"
+          fi
+
       - name: Build package
         run: npm run build
 
