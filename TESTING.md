@@ -50,12 +50,40 @@ npm test
 # Run all tests once
 npm run test:run
 
+# Run cross-browser tests (Firefox via Playwright)
+npm run test:browser
+
 # Run tests with coverage report
 npm run test:coverage
 
 # Run tests with coverage in watch mode
 npm run test:coverage:watch
 ```
+
+### Cross-Browser Testing
+
+Browser tests run a subset of the test suite in real browsers using Playwright. This validates that worker-based functionality works correctly across different JavaScript engines.
+
+**Current Coverage:**
+- **Browser**: Firefox (non-Chromium engine)
+- **Test Scope**: Worker-related tests (`WorkerGridStore`, `useGridStore`)
+- **CI**: Runs automatically on all PRs
+
+**Rationale:**
+- Firefox uses SpiderMonkey JavaScript engine (vs V8 in Chrome/Edge)
+- Worker APIs can have subtle cross-browser differences
+- Validates Web Worker communication patterns work universally
+
+**Local Testing:**
+```bash
+# Install Playwright browsers first (one-time setup)
+npx playwright install firefox
+
+# Run browser tests
+npm run test:browser
+```
+
+Browser tests use a separate config (`vitest.browser.config.ts`) to avoid conflicts with the faster jsdom-based unit tests.
 
 ### Coverage Thresholds
 
@@ -105,12 +133,22 @@ Vitest 2.x automatically installs the coverage provider (`@vitest/coverage-v8`) 
 
 ### CI Integration
 
-The coverage report can be integrated into CI pipelines by:
+**Test Matrix:**
+- **React Versions**: 18.x and 19.x (peerDependencies support both)
+- **Browsers**: jsdom (main tests) + Firefox via Playwright (browser tests)
+- **Node**: 20.x on Ubuntu
 
-1. Running `npm run test:coverage` in CI
-2. Uploading the `coverage/` directory as artifacts
-3. Parsing `coverage/lcov.info` for PR comments or status checks
-4. Failing the build if thresholds are not met (enforced by Vitest config)
+The CI pipeline runs:
+
+1. **Matrix tests**: All tests against React 18 and React 19
+2. **Browser tests**: Worker tests in Firefox (cross-engine validation)
+3. **Build validation**: Ensures package builds successfully
+4. **Format & type checks**: Prettier and TypeScript validation
+
+Coverage reports are generated and can be:
+- Uploaded as CI artifacts
+- Parsed from `coverage/lcov.info` for PR comments
+- Used to enforce thresholds (Vitest fails the build if not met)
 
 ### Future Improvements
 
