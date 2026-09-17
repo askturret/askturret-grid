@@ -877,4 +877,92 @@ describe('DataGrid', () => {
       rafSpy.mockRestore();
     });
   });
+
+  describe('slice mode (controlled viewport)', () => {
+    it('renders rows from viewport slice with correct count', () => {
+      // Simulates worker-backed store sending a viewport slice
+      const viewportData: TestRow[] = [
+        { id: '10', name: 'Row 10', value: 1000, status: 'active' },
+        { id: '11', name: 'Row 11', value: 1100, status: 'active' },
+        { id: '12', name: 'Row 12', value: 1200, status: 'active' },
+      ];
+
+      const onViewportChange = vi.fn();
+
+      render(
+        <DataGrid
+          data={viewportData}
+          columns={columns}
+          rowKey="id"
+          rowCount={1000} // Total rows in the dataset
+          viewportStart={10} // These are rows 10-12 out of 1000
+          onViewportChange={onViewportChange}
+          virtualize={true}
+        />
+      );
+
+      // Critical: Check that DataGrid actually renders the viewport rows
+      expect(screen.getByText('Row 10')).toBeInTheDocument();
+      expect(screen.getByText('Row 11')).toBeInTheDocument();
+      expect(screen.getByText('Row 12')).toBeInTheDocument();
+
+      // Verify it's using the correct count (not 0, not data.length)
+      // We can't directly access virtualizer.range, but we can verify rows rendered
+      // If count was 0, getVirtualItems() would return [] and nothing would render
+      const rows = screen.getAllByRole('row');
+      // Should have header + 3 data rows (at minimum, virtualizer may render more for overscan)
+      expect(rows.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('renders zero-state when viewport slice is empty (beginning of empty dataset)', () => {
+      const onViewportChange = vi.fn();
+
+      render(
+        <DataGrid
+          data={[]}
+          columns={columns}
+          rowKey="id"
+          rowCount={0} // Empty dataset
+          viewportStart={0}
+          onViewportChange={onViewportChange}
+          virtualize={true}
+          emptyMessage="No data available"
+        />
+      );
+
+      // Should show empty message, not crash with count=0
+      expect(screen.getByText('No data available')).toBeInTheDocument();
+    });
+
+    it('handles large rowCount without rendering all rows', () => {
+      // Simulates 1M rows with only a small viewport slice provided
+      const smallViewportSlice: TestRow[] = [
+        { id: '50000', name: 'Row 50000', value: 50000, status: 'active' },
+        { id: '50001', name: 'Row 50001', value: 50001, status: 'active' },
+      ];
+
+      const onViewportChange = vi.fn();
+
+      render(
+        <DataGrid
+          data={smallViewportSlice}
+          columns={columns}
+          rowKey="id"
+          rowCount={1000000} // 1M total rows
+          viewportStart={50000}
+          onViewportChange={onViewportChange}
+          virtualize={true}
+        />
+      );
+
+      // Verify the viewport rows render
+      expect(screen.getByText('Row 50000')).toBeInTheDocument();
+      expect(screen.getByText('Row 50001')).toBeInTheDocument();
+
+      // Verify it didn't try to render 1M rows (would crash)
+      const rows = screen.getAllByRole('row');
+      // Should only render header + viewport slice + overscan (not 1M rows)
+      expect(rows.length).toBeLessThan(100);
+    });
+  });
 });

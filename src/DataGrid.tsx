@@ -429,7 +429,7 @@ export function DataGrid<T extends object>({
   // Step 8: Dev warnings for viewport configuration mistakes
   useEffect(() => {
     // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
+    if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
       // Warn if viewport props provided but callback missing
       if ((rowCount !== undefined || viewportStart !== undefined) && !onViewportChange) {
         console.warn(
@@ -483,7 +483,11 @@ export function DataGrid<T extends object>({
 
   // Virtualizer - use mergedData.length to include leaving rows
   const virtualizer = useVirtualizer({
-    count: shouldVirtualize && wasmCoreReady ? visibleCount + leavingRowsSize : mergedData.length,
+    count: isSliceMode
+      ? rowCount! // Slice mode: virtualizer scrolls over total viewport rows
+      : shouldVirtualize && wasmCoreReady
+        ? visibleCount + leavingRowsSize // WASM mode: use filtered count
+        : mergedData.length, // Uncontrolled mode: use merged data length
     getScrollElement: () => parentRef.current,
     estimateSize: () => rowHeight,
     overscan: 10,
