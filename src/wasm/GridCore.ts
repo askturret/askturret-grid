@@ -67,12 +67,14 @@ async function loadWasm(): Promise<WasmModule | null> {
     if (wasm.default && typeof wasm.default === 'function') {
       await wasm.default();
     }
+    // Cast to WasmModule to access optional GridState/IndexedGridState properties
+    const wasmTyped = wasm as WasmModule;
     // GridCore requires GridState/IndexedGridState classes which are not in the base WASM package
     // If they don't exist, throw to fall back to JS
-    if (!wasm.GridState || !wasm.IndexedGridState) {
+    if (!wasmTyped.GridState || !wasmTyped.IndexedGridState) {
       throw new Error('GridState classes not available in WASM module');
     }
-    wasmModule = wasm as WasmModule;
+    wasmModule = wasmTyped;
     return wasmModule;
   } catch (e) {
     console.warn('[GridCore] WASM not available:', e);
@@ -193,7 +195,7 @@ export class GridCore {
    */
   async init(): Promise<boolean> {
     const available = await initGridCore();
-    if (available && wasmModule) {
+    if (available && wasmModule && wasmModule.IndexedGridState) {
       // Use IndexedGridState for trigram-indexed filtering
       this.wasmState = new wasmModule.IndexedGridState();
       return true;
