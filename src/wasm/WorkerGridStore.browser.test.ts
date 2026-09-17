@@ -71,9 +71,7 @@ describe('WorkerGridStore (Browser - Real Worker API)', () => {
   });
 
   it('handles concurrent getStats requests with real Worker', async () => {
-    const schema: ColumnSchema[] = [
-      { name: 'id', primaryKey: true, indexed: true },
-    ];
+    const schema: ColumnSchema[] = [{ name: 'id', primaryKey: true, indexed: true }];
 
     const store = await WorkerGridStore.create(schema);
 
@@ -86,11 +84,7 @@ describe('WorkerGridStore (Browser - Real Worker API)', () => {
       const stats2Promise = store.getStats();
       const stats3Promise = store.getStats();
 
-      const [stats1, stats2, stats3] = await Promise.all([
-        stats1Promise,
-        stats2Promise,
-        stats3Promise,
-      ]);
+      const [stats1, stats2, stats3] = await Promise.all([stats1Promise, stats2Promise, stats3Promise]);
 
       // All requests should resolve with valid stats (validates real Worker message routing)
       expect(stats1).toHaveProperty('pendingUpdates');
@@ -102,9 +96,7 @@ describe('WorkerGridStore (Browser - Real Worker API)', () => {
   });
 
   it('properly terminates real Worker on dispose', async () => {
-    const schema: ColumnSchema[] = [
-      { name: 'id', primaryKey: true, indexed: true },
-    ];
+    const schema: ColumnSchema[] = [{ name: 'id', primaryKey: true, indexed: true }];
 
     const store = await WorkerGridStore.create(schema);
 

@@ -16,9 +16,7 @@ import type { ColumnSchema } from '../wasm/WasmGridStore';
  */
 describe('useGridStore (Browser - Real Worker API)', () => {
   it('initializes with worker store type using real Worker', async () => {
-    const schema: ColumnSchema[] = [
-      { name: 'id', primaryKey: true, indexed: true },
-    ];
+    const schema: ColumnSchema[] = [{ name: 'id', primaryKey: true, indexed: true }];
 
     const { result } = renderHook(() =>
       useGridStore({
@@ -36,9 +34,7 @@ describe('useGridStore (Browser - Real Worker API)', () => {
     expect(result.current.rowCount).toBe(1);
   });
 
-  it(
-    'does not re-initialize when fresh-but-equivalent schema/initialData are passed (real Worker)',
-    async () => {
+  it('does not re-initialize when fresh-but-equivalent schema/initialData are passed (real Worker)', async () => {
     const createSchema = (): ColumnSchema[] => [
       { name: 'id', primaryKey: true, indexed: true },
       { name: 'value', primaryKey: false, indexed: false },
@@ -93,9 +89,7 @@ describe('useGridStore (Browser - Real Worker API)', () => {
   });
 
   it('cleans up real Worker on unmount', async () => {
-    const schema: ColumnSchema[] = [
-      { name: 'id', primaryKey: true, indexed: true },
-    ];
+    const schema: ColumnSchema[] = [{ name: 'id', primaryKey: true, indexed: true }];
 
     const { result, unmount } = renderHook(() =>
       useGridStore({
