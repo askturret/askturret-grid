@@ -241,7 +241,7 @@ export function DataGrid<T extends object>({
 
   // Dev warnings for controlled/uncontrolled mode (R2, R3, R5)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return;
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
 
     // R2: Warn when controlled prop is set without callback
     if (controlledFilter !== undefined && !onFilterChange && showFilter) {
@@ -264,7 +264,7 @@ export function DataGrid<T extends object>({
   const prevSortControlled = useRef(controlledSort !== undefined);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return;
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
 
     const nowFilterControlled = controlledFilter !== undefined;
     const nowSortControlled = controlledSort !== undefined;
