@@ -20,30 +20,30 @@ export interface ColumnDef<T> {
   /** Column header text */
   header: string;
   /** CSS width (e.g., "100px", "20%") */
-  width?: string;
+  width?: string | undefined;
   /** Text alignment */
-  align?: 'left' | 'right' | 'center';
+  align?: 'left' | 'right' | 'center' | undefined;
   /** Enable sorting on this column (default: true) */
-  sortable?: boolean;
+  sortable?: boolean | undefined;
   /** Custom cell formatter */
-  formatter?: (value: unknown, row: T) => string | React.ReactNode;
+  formatter?: ((value: unknown, row: T) => string | React.ReactNode) | undefined;
   /** Dynamic cell CSS class */
-  cellClass?: (value: unknown, row: T) => string;
+  cellClass?: ((value: unknown, row: T) => string) | undefined;
   /**
    * Enable flash highlighting on numeric value changes. Flash highlighting
    * is unconditional by default (fires at every value change). For automatic
    * FPS-adaptive throttling, set `adaptiveFlash` on `DataGrid`, or call
    * `useAdaptiveFlash()` manually and wire it into `disableFlash`.
    */
-  flashOnChange?: boolean;
+  flashOnChange?: boolean | undefined;
   /** Disable resizing for this column (default: true when grid resizable) */
-  resizable?: boolean;
+  resizable?: boolean | undefined;
   /** Disable reordering for this column (default: true when grid reorderable) */
-  reorderable?: boolean;
+  reorderable?: boolean | undefined;
   /** Minimum width in pixels for this column */
-  minWidth?: number;
+  minWidth?: number | undefined;
   /** Maximum width in pixels for this column */
-  maxWidth?: number;
+  maxWidth?: number | undefined;
 }
 
 /**
@@ -253,6 +253,7 @@ export function DataGrid<T extends object>({
     if (columns.length === 0) return [];
 
     const firstCol = columns[0];
+    if (!firstCol) return [];
     const isGridColumn = 'name' in firstCol && !('field' in firstCol);
 
     if (isGridColumn) {
@@ -563,8 +564,12 @@ export function DataGrid<T extends object>({
     const items = virtualizer.getVirtualItems();
     if (items.length === 0) return;
 
-    const startIndex = items[0].index;
-    const endIndex = items[items.length - 1].index;
+    const firstItem = items[0];
+    const lastItem = items[items.length - 1];
+    if (!firstItem || !lastItem) return;
+
+    const startIndex = firstItem.index;
+    const endIndex = lastItem.index;
 
     // Coalesce updates - use requestAnimationFrame to batch rapid scroll events
     const handle = requestAnimationFrame(() => {

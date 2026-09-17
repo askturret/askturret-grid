@@ -10,17 +10,17 @@ export interface ColumnDef<T> {
 export interface UseSortedDataParams<T> {
   data: T[];
   filter: string;
-  filterFields?: (keyof T)[];
+  filterFields?: (keyof T)[] | undefined;
   columns: ColumnDef<T>[];
   sort: SortState;
   wasmCoreReady: boolean;
   wasmIndices: number[] | null;
   shouldVirtualize: boolean;
-  passthrough?: boolean;
+  passthrough?: boolean | undefined;
   /** Total view size when data is a slice (worker store controlled mode) */
-  rowCount?: number;
+  rowCount?: number | undefined;
   /** Absolute index of data[0] in the full view (worker store controlled mode) */
-  viewportStart?: number;
+  viewportStart?: number | undefined;
 }
 
 export interface UseSortedDataReturn<T> {
@@ -85,7 +85,7 @@ export function useSortedData<T>({
 
     // Use WASM indices if available (non-virtualized mode)
     if (wasmCoreReady && wasmIndices) {
-      return wasmIndices.map((i) => data[i]);
+      return wasmIndices.map((i) => data[i]).filter((row): row is T => row !== undefined);
     }
 
     // Fallback: Try old WASM filterAndSort for medium datasets
@@ -98,7 +98,7 @@ export function useSortedData<T>({
         : data.map((_, i) => i);
       const direction: WasmSortDirection = sort.direction === 'desc' ? 'desc' : 'asc';
       const indices = filterAndSort(sortValues, filterColumns, filter, direction);
-      return indices.map((i) => data[i]);
+      return indices.map((i) => data[i]).filter((row): row is T => row !== undefined);
     }
 
     // JavaScript fallback

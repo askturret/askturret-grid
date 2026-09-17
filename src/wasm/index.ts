@@ -151,8 +151,13 @@ function jsFilterValues<T>(columns: T[][], search: string, mode: FilterMode): nu
     return Array.from({ length: columns[0]?.length || 0 }, (_, i) => i);
   }
 
+  const firstColumn = columns[0];
+  if (!firstColumn) {
+    return [];
+  }
+
   const searchLower = search.toLowerCase();
-  const len = columns[0].length;
+  const len = firstColumn.length;
   const indices: number[] = [];
 
   for (let i = 0; i < len; i++) {
@@ -230,13 +235,18 @@ export function sortMultiColumn<T>(columns: T[][], directions: SortDirection[]):
   // JS implementation for multi-column sort
   if (!columns.length) return [];
 
-  const len = columns[0].length;
+  const firstColumn = columns[0];
+  if (!firstColumn) return [];
+
+  const len = firstColumn.length;
   const indices = Array.from({ length: len }, (_, i) => i);
 
   indices.sort((a, b) => {
     for (let c = 0; c < columns.length; c++) {
-      const va = columns[c][a];
-      const vb = columns[c][b];
+      const column = columns[c];
+      if (!column) continue;
+      const va = column[a];
+      const vb = column[b];
       const dir = directions[c] || 'asc';
 
       if (va == null && vb == null) continue;
