@@ -415,13 +415,44 @@ export function DataGrid<T extends object>({
   });
 
   // Row-exit lifecycle (leaving rows + cleanup)
+  // Step 7: Disable row-exit in slice mode - worker stores don't support row-exit animation,
+  // and trying to animate in a viewport slice would be nonsensical
+  const isSliceMode = rowCount !== undefined && viewportStart !== undefined;
   const { mergedData, leavingRowsSize, clearLeaving } = useRowExit({
     sortedData,
-    rowExitDuration,
+    rowExitDuration: isSliceMode ? 0 : rowExitDuration,
     getRowKey,
     filter,
     columnOrder,
   });
+
+  // Step 8: Dev warnings for viewport configuration mistakes
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      // Warn if viewport props provided but callback missing
+      if ((rowCount !== undefined || viewportStart !== undefined) && !onViewportChange) {
+        console.warn(
+          '[DataGrid] rowCount/viewportStart provided but onViewportChange is missing. ' +
+          'Viewport mode requires onViewportChange callback to dispatch scroll events to the store.'
+        );
+      }
+
+      // Warn if data.length doesn't match expected slice size
+      // (helps catch worker store bugs where viewport slice size is wrong)
+      if (isSliceMode && data.length > 0) {
+        // In slice mode, data should contain exactly the rows between viewportStart and min(viewportStart + visibleRowCount, rowCount)
+        // We can't perfectly validate without knowing the requested viewport end, but we can warn if data is obviously wrong
+        const maxExpectedLength = Math.min(100, rowCount!); // Assume reasonable viewport size
+        if (data.length > maxExpectedLength) {
+          console.warn(
+            `[DataGrid] Slice mode: data.length (${data.length}) seems larger than expected for a viewport slice. ` +
+            `rowCount=${rowCount}, viewportStart=${viewportStart}. ` +
+            'Check that the store is sending a viewport slice, not the full view.'
+          );
+        }
+      }
+    }
+  }, [rowCount, viewportStart, onViewportChange, isSliceMode, data.length]);
 
   // Flash detection (lazy, per visible row during render)
   const { updateFlashForRow, getCellFlashClass } = useFlashDetection({
