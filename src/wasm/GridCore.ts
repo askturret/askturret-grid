@@ -73,7 +73,6 @@ async function loadWasm(): Promise<WasmModule | null> {
       throw new Error('GridState classes not available in WASM module');
     }
     wasmModule = wasm as WasmModule;
-    console.log('[GridCore] WASM module loaded');
     return wasmModule;
   } catch (e) {
     console.warn('[GridCore] WASM not available:', e);

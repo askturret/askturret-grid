@@ -74,7 +74,6 @@ async function loadWasmModule(): Promise<WasmModule | null> {
     }
 
     wasmModule = wasm as WasmModule;
-    console.log('[askturret-grid] WASM module loaded successfully');
     return wasmModule;
   } catch (error) {
     console.warn('[askturret-grid] WASM module not available, using JS fallback:', error);

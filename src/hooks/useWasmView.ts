@@ -67,7 +67,6 @@ export function useWasmView<T>({
       if (mounted && success) {
         gridCoreRef.current = core;
         setWasmCoreReady(true);
-        console.log('[DataGrid] WASM GridCore initialized successfully');
       } else if (mounted) {
         console.warn('[DataGrid] WASM GridCore failed to initialize, using JS fallback');
       }
