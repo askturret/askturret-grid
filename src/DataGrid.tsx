@@ -470,6 +470,19 @@ export function DataGrid<T extends object>({
       const totalRows = isSliceMode ? rowCount ?? 0 : mergedData.length;
       if (totalRows === 0) return;
 
+      // Only handle keyboard events when:
+      // 1. Target is the grid container itself (role="grid"), OR
+      // 2. Target is a row element (role="row" or <tr>)
+      // This prevents conflicts with filter inputs, header buttons, etc.
+      const target = e.target as HTMLElement;
+      const isGridContainer = target.getAttribute('role') === 'grid';
+      const isRow = target.getAttribute('role') === 'row' || target.tagName === 'TR';
+
+      if (!isGridContainer && !isRow) {
+        // Let the event bubble naturally for non-row targets
+        return;
+      }
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();

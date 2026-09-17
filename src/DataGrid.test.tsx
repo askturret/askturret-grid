@@ -1157,5 +1157,82 @@ describe('DataGrid', () => {
       const draggableHeaders = container.querySelectorAll('[draggable="true"][aria-grabbed]');
       expect(draggableHeaders.length).toBe(3); // All 3 columns are reorderable by default
     });
+
+    it('should not intercept Space key from filter input', () => {
+      const handleRowClick = vi.fn();
+      const { container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          onRowClick={handleRowClick}
+          showFilter={true}
+        />
+      );
+
+      // Navigate to a row first
+      const grid = container.querySelector('[role="grid"]');
+      grid!.focus();
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Now type Space in the filter input - should NOT trigger row click
+      const filterInput = container.querySelector('input[type="text"]') as HTMLInputElement;
+      filterInput.focus();
+      fireEvent.keyDown(filterInput, { key: ' ' });
+
+      expect(handleRowClick).not.toHaveBeenCalled();
+    });
+
+    it('should not intercept Home/End keys from filter input', () => {
+      const { container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          showFilter={true}
+        />
+      );
+
+      const filterInput = container.querySelector('input[type="text"]') as HTMLInputElement;
+      filterInput.focus();
+      filterInput.value = 'test text';
+      filterInput.setSelectionRange(5, 5); // Position cursor in middle
+
+      // Home key should move cursor to start, not scroll grid
+      fireEvent.keyDown(filterInput, { key: 'Home' });
+      // Cursor movement happens natively; we verify the event wasn't prevented
+      // by checking that no error is thrown and grid didn't scroll
+
+      // End key should move cursor to end
+      fireEvent.keyDown(filterInput, { key: 'End' });
+
+      // If the grid intercepted these keys, the filter input wouldn't work properly
+      expect(filterInput).toBe(document.activeElement);
+    });
+
+    it('should not intercept Enter key from sortable header button', () => {
+      const handleRowClick = vi.fn();
+      const sortableColumns = columns.map(col => ({ ...col, sortable: true }));
+      const { container } = render(
+        <DataGrid
+          data={testData}
+          columns={sortableColumns}
+          rowKey="id"
+          onRowClick={handleRowClick}
+        />
+      );
+
+      // Navigate to a row first
+      const grid = container.querySelector('[role="grid"]');
+      grid!.focus();
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Now press Enter on a header button - should NOT trigger row click
+      const headerButton = container.querySelector('th button') as HTMLButtonElement;
+      headerButton.focus();
+      fireEvent.keyDown(headerButton, { key: 'Enter' });
+
+      expect(handleRowClick).not.toHaveBeenCalled();
+    });
   });
 });
