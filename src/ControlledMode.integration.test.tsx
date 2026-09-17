@@ -48,17 +48,32 @@ const columns: GridColumn<TestRow>[] = [
 // Mock the store implementations
 vi.mock('./wasm/WorkerGridStore', () => ({
   WorkerGridStore: {
-    create: vi.fn().mockResolvedValue({
-      dispose: vi.fn(),
-      onVisibleRowsChange: vi.fn(),
-      onViewCountChange: vi.fn(),
-      setViewport: vi.fn(),
-      loadRows: vi.fn().mockResolvedValue(undefined),
-      queueUpdates: vi.fn(),
-      setFilter: vi.fn(),
-      clearFilter: vi.fn(),
-      setSort: vi.fn(),
-      clearSort: vi.fn(),
+    create: vi.fn().mockImplementation(async () => {
+      let visibleRowsCallback: ((rows: unknown[], startIndex: number) => void) | null = null;
+      let viewCountCallback: ((viewCount: number, totalCount: number) => void) | null = null;
+
+      return {
+        dispose: vi.fn(),
+        onVisibleRowsChange: vi.fn((cb) => {
+          visibleRowsCallback = cb;
+        }),
+        onViewCountChange: vi.fn((cb) => {
+          viewCountCallback = cb;
+          // Immediately invoke with initial counts
+          if (cb) cb(3, 3);
+        }),
+        setViewport: vi.fn(),
+        loadRows: vi.fn().mockImplementation(async (rows: unknown[]) => {
+          // Simulate worker store loading rows and calling callbacks
+          if (visibleRowsCallback) visibleRowsCallback(rows, 0);
+          if (viewCountCallback) viewCountCallback(rows.length, rows.length);
+        }),
+        queueUpdates: vi.fn(),
+        setFilter: vi.fn(),
+        clearFilter: vi.fn(),
+        setSort: vi.fn(),
+        clearSort: vi.fn(),
+      };
     }),
   },
 }));

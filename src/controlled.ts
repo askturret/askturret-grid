@@ -22,6 +22,10 @@ import type { SortDirection } from './wasm/WasmGridStore';
  * ```
  */
 export function controlledBy<T>(store: GridStoreResult<T>) {
+  // Viewport mode: only for stores where startIndex can be non-zero (worker stores)
+  // WASM/JS stores always have startIndex=0 and return full view, not viewport slices
+  const isViewportMode = store.startIndex > 0 || store.storeType === 'worker';
+
   return {
     // Filter/sort controlled mode
     filter: store.filter,
@@ -34,10 +38,14 @@ export function controlledBy<T>(store: GridStoreResult<T>) {
         store.clearSort();
       }
     },
-    // Viewport controlled mode (worker stores only - wasm/js always have startIndex=0)
-    // When startIndex > 0, DataGrid enters slice mode and renders placeholders for out-of-range rows
-    rowCount: store.viewCount,
-    viewportStart: store.startIndex,
-    onViewportChange: store.setViewport,
+    // Viewport controlled mode (worker stores only)
+    // Conditional spread: only include viewport props for worker stores
+    ...(isViewportMode
+      ? {
+          rowCount: store.viewCount,
+          viewportStart: store.startIndex,
+          onViewportChange: store.setViewport,
+        }
+      : {}),
   } as const;
 }
