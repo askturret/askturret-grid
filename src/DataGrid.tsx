@@ -428,12 +428,13 @@ export function DataGrid<T extends object>({
 
   // Step 8: Dev warnings for viewport configuration mistakes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
+    // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
       // Warn if viewport props provided but callback missing
       if ((rowCount !== undefined || viewportStart !== undefined) && !onViewportChange) {
         console.warn(
           '[DataGrid] rowCount/viewportStart provided but onViewportChange is missing. ' +
-          'Viewport mode requires onViewportChange callback to dispatch scroll events to the store.'
+            'Viewport mode requires onViewportChange callback to dispatch scroll events to the store.'
         );
       }
 
@@ -446,8 +447,8 @@ export function DataGrid<T extends object>({
         if (data.length > maxExpectedLength) {
           console.warn(
             `[DataGrid] Slice mode: data.length (${data.length}) seems larger than expected for a viewport slice. ` +
-            `rowCount=${rowCount}, viewportStart=${viewportStart}. ` +
-            'Check that the store is sending a viewport slice, not the full view.'
+              `rowCount=${rowCount}, viewportStart=${viewportStart}. ` +
+              'Check that the store is sending a viewport slice, not the full view.'
           );
         }
       }
@@ -777,9 +778,11 @@ export function DataGrid<T extends object>({
 
                   if (row === undefined) {
                     // Out-of-slice row - render placeholder
-                    const placeholderContent = renderPlaceholderRow
-                      ? renderPlaceholderRow(virtualRow.index)
-                      : <div className="askturret-grid-virtual-row-placeholder">Loading...</div>;
+                    const placeholderContent = renderPlaceholderRow ? (
+                      renderPlaceholderRow(virtualRow.index)
+                    ) : (
+                      <div className="askturret-grid-virtual-row-placeholder">Loading...</div>
+                    );
 
                     return (
                       <div

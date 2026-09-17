@@ -133,7 +133,18 @@ export function useSortedData<T>({
     }
 
     return result;
-  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize, passthrough, isSliceMode]);
+  }, [
+    data,
+    filter,
+    filterFields,
+    columns,
+    sort,
+    wasmCoreReady,
+    wasmIndices,
+    shouldVirtualize,
+    passthrough,
+    isSliceMode,
+  ]);
 
   // Get row at index - uses WASM indices or direct data access
   const getRowAtIndex = useCallback(
