@@ -239,6 +239,58 @@ export function DataGrid<T extends object>({
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
+  // Dev warnings for controlled/uncontrolled mode (R2, R3, R5)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+
+    // R2: Warn when controlled prop is set without callback
+    if (controlledFilter !== undefined && !onFilterChange && showFilter) {
+      console.warn(
+        '[DataGrid] `filter` is controlled but `onFilterChange` is not provided. ' +
+          'The filter input will be read-only. Either provide `onFilterChange` or remove `filter`.'
+      );
+    }
+
+    if (controlledSort !== undefined && !onSortChange) {
+      console.warn(
+        '[DataGrid] `sort` is controlled but `onSortChange` is not provided. ' +
+          'Sort headers will ignore clicks. Either provide `onSortChange` or remove `sort`.'
+      );
+    }
+  }, [controlledFilter, onFilterChange, controlledSort, onSortChange, showFilter]);
+
+  // R3: Warn on transitions between controlled and uncontrolled
+  const prevFilterControlled = useRef(controlledFilter !== undefined);
+  const prevSortControlled = useRef(controlledSort !== undefined);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+
+    const nowFilterControlled = controlledFilter !== undefined;
+    const nowSortControlled = controlledSort !== undefined;
+
+    if (prevFilterControlled.current !== nowFilterControlled) {
+      console.warn(
+        '[DataGrid] `filter` prop changed from ' +
+          (prevFilterControlled.current ? 'controlled to uncontrolled' : 'uncontrolled to controlled') +
+          '. This is an anti-pattern and may cause unexpected behavior. ' +
+          'Decide whether `filter` should be controlled on mount and keep it consistent.'
+      );
+    }
+
+    if (prevSortControlled.current !== nowSortControlled) {
+      console.warn(
+        '[DataGrid] `sort` prop changed from ' +
+          (prevSortControlled.current ? 'controlled to uncontrolled' : 'uncontrolled to controlled') +
+          '. This is an anti-pattern and may cause unexpected behavior. ' +
+          'Decide whether `sort` should be controlled on mount and keep it consistent.'
+      );
+    }
+
+    prevFilterControlled.current = nowFilterControlled;
+    prevSortControlled.current = nowSortControlled;
+  }, [controlledFilter, controlledSort]);
+
   // Adaptive flash monitoring (when enabled)
   const { disableFlash: adaptiveDisable } = useAdaptiveFlash(adaptiveFlash);
 
