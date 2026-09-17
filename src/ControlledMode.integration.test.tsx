@@ -207,10 +207,14 @@ describe('Controlled-mode DataGrid integration', () => {
     // Initially empty
     expect(storeFilterDisplay.textContent).toBe('');
 
-    // Type into filter input
+    // Type into filter input using proper React event
     act(() => {
-      filterInput.value = 'MSFT';
-      filterInput.dispatchEvent(new Event('change', { bubbles: true }));
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )!.set!;
+      nativeInputValueSetter.call(filterInput, 'MSFT');
+      filterInput.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
     // Store filter should update
