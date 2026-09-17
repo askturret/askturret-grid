@@ -344,6 +344,73 @@ exportToCSV(data, columns, { filename: 'portfolio.csv' });
 const csv = exportToCSV(data, columns, { download: false });
 ```
 
+## Controlled Mode & Viewport Handshake
+
+For advanced use cases with `useGridStore`, use the `controlledBy()` helper to wire filter, sort, and viewport state between the store and DataGrid in one line:
+
+```tsx
+import { DataGrid, useGridStore, controlledBy, deriveRowKey } from '@askturret/grid';
+
+function App() {
+  const store = useGridStore({
+    storeType: 'worker',
+    schema: columns,
+    initialData: data,
+    visibleRowCount: 50, // Viewport size for worker store
+  });
+
+  if (!store.isReady) return <div>Loading...</div>;
+
+  return (
+    <DataGrid
+      data={store.data}
+      columns={columns}
+      rowKey={deriveRowKey(columns)}
+      showFilter
+      virtualized
+      {...controlledBy(store)} // One-line wiring: filter, sort, viewport
+    />
+  );
+}
+```
+
+### What `controlledBy()` does
+
+The `controlledBy(store)` helper returns controlled props that make DataGrid trust the store's state:
+
+- **Filter/sort controlled mode**: DataGrid displays `store.filter` and `store.sort` but doesn't filter/sort data itself (the store already did)
+- **Viewport mode** (worker stores only): DataGrid renders `store.data` as a viewport slice with placeholders for out-of-range rows
+
+### Viewport handshake (worker stores)
+
+Worker stores operate in **viewport mode**: they maintain the full filtered/sorted view internally and send only a slice of visible rows to avoid blocking the main thread with large datasets.
+
+**How it works:**
+
+1. DataGrid's virtualizer tells the worker which rows are visible: `onViewportChange(startIndex, endIndex)`
+2. Worker store loads that slice and updates `store.data` with visible rows
+3. DataGrid renders the slice and shows loading placeholders for out-of-range rows
+4. As you scroll, the viewport updates and worker sends the next slice
+
+**Benefits:**
+
+- **Non-blocking** — 1M row dataset never blocks the main thread
+- **Constant memory** — Only ~50 rows in memory regardless of dataset size
+- **Instant scrolling** — Placeholders render immediately, data loads in background
+
+**Custom placeholders:**
+
+```tsx
+<DataGrid
+  {...controlledBy(store)}
+  renderPlaceholderRow={(index) => (
+    <div className="loading-row">Loading row {index}...</div>
+  )}
+/>
+```
+
+WASM and JS stores always return the full view (no viewport slicing), so `controlledBy()` works with all three engines transparently.
+
 ## vs Other Grids
 
 | Feature | AG Grid | TanStack Table | @askturret/grid |

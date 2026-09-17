@@ -148,6 +148,37 @@ export interface DataGridProps<T> {
    */
   onSortChange?: (sort: { field: string | null; direction: 'asc' | 'desc' | null }) => void;
 
+  // Viewport (for worker store controlled mode)
+  /**
+   * Total row count for virtualizer sizing when `data` is a viewport SLICE
+   * of a larger view (worker-store controlled mode). When provided, the
+   * virtualizer scrolls over `rowCount` rows rather than `data.length`.
+   * Requires `virtualize: true` (or 'auto' with rowCount > threshold).
+   */
+  rowCount?: number;
+  /**
+   * The absolute index of `data[0]` in the full view. Together with
+   * `rowCount`, this tells DataGrid that `data[i]` represents view row
+   * `viewportStart + i`. Rows outside `[viewportStart, viewportStart + data.length)`
+   * render as placeholders until `onViewportChange` produces a slice covering them.
+   */
+  viewportStart?: number;
+  /**
+   * Called when the virtualizer's rendered range changes. The consumer is
+   * expected to dispatch this to the store's `setViewport(start, end)`.
+   * Called at MOST once per scroll frame — DataGrid coalesces internally.
+   * Required whenever `rowCount > data.length`; otherwise scrolling past
+   * the initial slice will render permanent placeholders.
+   */
+  onViewportChange?: (start: number, end: number) => void;
+  /**
+   * Custom placeholder renderer for viewport-relative out-of-range rows.
+   * Called with the ABSOLUTE view index. Defaults to an empty row with
+   * class `askturret-grid-row-placeholder` — consumers can style a
+   * skeleton/shimmer via CSS without providing this prop.
+   */
+  renderPlaceholderRow?: (index: number) => React.ReactNode;
+
   // Row Exit Lifecycle
   /**
    * Dynamic row-level CSS class. Called for every rendered row, including
@@ -207,6 +238,11 @@ export function DataGrid<T extends object>({
   onFilterChange,
   sort: controlledSort,
   onSortChange,
+  // Viewport (worker store controlled mode)
+  rowCount,
+  viewportStart,
+  onViewportChange,
+  renderPlaceholderRow,
   // Row exit lifecycle
   rowClass,
   rowExitDuration = 0,
@@ -374,16 +410,50 @@ export function DataGrid<T extends object>({
     wasmIndices,
     shouldVirtualize,
     passthrough: !!onFilterChange || !!onSortChange,
+    rowCount,
+    viewportStart,
   });
 
   // Row-exit lifecycle (leaving rows + cleanup)
+  // Step 7: Disable row-exit in slice mode - worker stores don't support row-exit animation,
+  // and trying to animate in a viewport slice would be nonsensical
+  const isSliceMode = rowCount !== undefined && viewportStart !== undefined;
   const { mergedData, leavingRowsSize, clearLeaving } = useRowExit({
     sortedData,
-    rowExitDuration,
+    rowExitDuration: isSliceMode ? 0 : rowExitDuration,
     getRowKey,
     filter,
     columnOrder,
   });
+
+  // Step 8: Dev warnings for viewport configuration mistakes
+  useEffect(() => {
+    // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
+    if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      // Warn if viewport props provided but callback missing
+      if ((rowCount !== undefined || viewportStart !== undefined) && !onViewportChange) {
+        console.warn(
+          '[DataGrid] rowCount/viewportStart provided but onViewportChange is missing. ' +
+            'Viewport mode requires onViewportChange callback to dispatch scroll events to the store.'
+        );
+      }
+
+      // Warn if data.length doesn't match expected slice size
+      // (helps catch worker store bugs where viewport slice size is wrong)
+      if (isSliceMode && data.length > 0) {
+        // In slice mode, data should contain exactly the rows between viewportStart and min(viewportStart + visibleRowCount, rowCount)
+        // We can't perfectly validate without knowing the requested viewport end, but we can warn if data is obviously wrong
+        const maxExpectedLength = Math.min(100, rowCount!); // Assume reasonable viewport size
+        if (data.length > maxExpectedLength) {
+          console.warn(
+            `[DataGrid] Slice mode: data.length (${data.length}) seems larger than expected for a viewport slice. ` +
+              `rowCount=${rowCount}, viewportStart=${viewportStart}. ` +
+              'Check that the store is sending a viewport slice, not the full view.'
+          );
+        }
+      }
+    }
+  }, [rowCount, viewportStart, onViewportChange, isSliceMode, data.length]);
 
   // Flash detection (lazy, per visible row during render)
   const { updateFlashForRow, getCellFlashClass } = useFlashDetection({
@@ -413,11 +483,33 @@ export function DataGrid<T extends object>({
 
   // Virtualizer - use mergedData.length to include leaving rows
   const virtualizer = useVirtualizer({
-    count: shouldVirtualize && wasmCoreReady ? visibleCount + leavingRowsSize : mergedData.length,
+    count: isSliceMode
+      ? rowCount! // Slice mode: virtualizer scrolls over total viewport rows
+      : shouldVirtualize && wasmCoreReady
+        ? visibleCount + leavingRowsSize // WASM mode: use filtered count
+        : mergedData.length, // Uncontrolled mode: use merged data length
     getScrollElement: () => parentRef.current,
     estimateSize: () => rowHeight,
     overscan: 10,
   });
+
+  // Step 4: Viewport dispatch effect (coalesced, fires only when onViewportChange provided)
+  useEffect(() => {
+    if (!onViewportChange) return;
+
+    const items = virtualizer.getVirtualItems();
+    if (items.length === 0) return;
+
+    const startIndex = items[0].index;
+    const endIndex = items[items.length - 1].index;
+
+    // Coalesce updates - use requestAnimationFrame to batch rapid scroll events
+    const handle = requestAnimationFrame(() => {
+      onViewportChange(startIndex, endIndex);
+    });
+
+    return () => cancelAnimationFrame(handle);
+  }, [virtualizer.range, onViewportChange]);
 
   // Render a single row for standard mode
   const renderTableRow = useCallback(
@@ -681,16 +773,60 @@ export function DataGrid<T extends object>({
               }}
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
-                const item = mergedData[virtualRow.index];
-                if (!item) return null;
-                return renderVirtualRow(item.row, item.isLeaving, {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
-                });
+                // Step 5: Slice mode placeholder rendering
+                const isSliceMode = rowCount !== undefined && viewportStart !== undefined;
+
+                if (isSliceMode) {
+                  // In slice mode, use getRowAtIndex to map absolute index to slice offset
+                  const row = getRowAtIndex(virtualRow.index);
+
+                  if (row === undefined) {
+                    // Out-of-slice row - render placeholder
+                    const placeholderContent = renderPlaceholderRow ? (
+                      renderPlaceholderRow(virtualRow.index)
+                    ) : (
+                      <div className="askturret-grid-virtual-row-placeholder">Loading...</div>
+                    );
+
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${virtualRow.size}px`,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        {placeholderContent}
+                      </div>
+                    );
+                  }
+
+                  // Row is in slice - render normally (no leaving rows in slice mode)
+                  return renderVirtualRow(row, false, {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  });
+                } else {
+                  // Non-slice mode - use mergedData (includes leaving rows)
+                  const item = mergedData[virtualRow.index];
+                  if (!item) return null;
+                  return renderVirtualRow(item.row, item.isLeaving, {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  });
+                }
               })}
             </div>
           </div>

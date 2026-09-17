@@ -877,4 +877,187 @@ describe('DataGrid', () => {
       rafSpy.mockRestore();
     });
   });
+
+  describe('slice mode (controlled viewport)', () => {
+    // Store original implementations to restore after each test
+    let originalGetBoundingClientRect: typeof Element.prototype.getBoundingClientRect;
+    let originalOffsetHeight: PropertyDescriptor | undefined;
+    let originalOffsetWidth: PropertyDescriptor | undefined;
+
+    afterEach(() => {
+      // Restore original implementations
+      if (originalGetBoundingClientRect) {
+        Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+      }
+      if (originalOffsetHeight) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', originalOffsetHeight);
+      }
+      if (originalOffsetWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth);
+      }
+    });
+
+    it('uses rowCount for virtualizer total size (not mergedData.length=0)', () => {
+      // Save originals
+      originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+      originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+
+      // Mock Element.prototype methods before render so virtualizer can measure
+      const mockGetBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Element.prototype.getBoundingClientRect = mockGetBoundingClientRect;
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
+      // Simulates worker-backed store sending a viewport slice
+      const viewportData: TestRow[] = [
+        { id: '10', name: 'Row 10', value: 1000, status: 'active' },
+        { id: '11', name: 'Row 11', value: 1100, status: 'active' },
+        { id: '12', name: 'Row 12', value: 1200, status: 'active' },
+      ];
+
+      const onViewportChange = vi.fn();
+
+      const { container } = render(
+        <DataGrid
+          data={viewportData}
+          columns={columns}
+          rowKey="id"
+          rowCount={1000} // Total rows in the dataset
+          viewportStart={10} // These are rows 10-12 out of 1000
+          onViewportChange={onViewportChange}
+          virtualize={true}
+        />
+      );
+
+      // The critical fix: virtualizer count should use rowCount (1000), not mergedData.length (0)
+      // This manifests as the total scroll container height
+      const virtualBody = container.querySelector('[style*="position: relative"]') as HTMLElement;
+      expect(virtualBody).toBeInTheDocument();
+
+      // 1000 rows * 36px per row = 36000px total height
+      expect(virtualBody).toHaveStyle({ height: '36000px' });
+
+      // Verify rows actually render in the DOM
+      expect(screen.getByText('Row 10')).toBeInTheDocument();
+      expect(screen.getByText('Row 11')).toBeInTheDocument();
+      expect(screen.getByText('Row 12')).toBeInTheDocument();
+    });
+
+    it('handles empty slice mode dataset (count=0)', () => {
+      // Save originals
+      originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+      originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+
+      // Mock Element.prototype methods before render
+      const mockGetBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Element.prototype.getBoundingClientRect = mockGetBoundingClientRect;
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
+      const onViewportChange = vi.fn();
+
+      const { container } = render(
+        <DataGrid
+          data={[]}
+          columns={columns}
+          rowKey="id"
+          rowCount={0} // Empty dataset
+          viewportStart={0}
+          onViewportChange={onViewportChange}
+          virtualize={true}
+        />
+      );
+
+      // Should compute height as 0 (not crash)
+      const virtualBody = container.querySelector('[style*="position: relative"]') as HTMLElement;
+      expect(virtualBody).toHaveStyle({ height: '0px' });
+
+      // Virtual body should exist but be empty (no rows)
+      const virtualContainer = container.querySelector('.askturret-grid-virtual-body');
+      expect(virtualContainer).toBeInTheDocument();
+      expect(virtualContainer?.querySelectorAll('.askturret-grid-virtual-row').length).toBe(0);
+    });
+
+    it('handles 1M row count without attempting to render all rows', () => {
+      // Save originals
+      originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+      originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+
+      // Mock Element.prototype methods before render
+      const mockGetBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Element.prototype.getBoundingClientRect = mockGetBoundingClientRect;
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
+      // Simulates 1M rows with only a small viewport slice provided
+      const smallViewportSlice: TestRow[] = [
+        { id: '50000', name: 'Row 50000', value: 50000, status: 'active' },
+        { id: '50001', name: 'Row 50001', value: 50001, status: 'active' },
+      ];
+
+      const onViewportChange = vi.fn();
+
+      const { container } = render(
+        <DataGrid
+          data={smallViewportSlice}
+          columns={columns}
+          rowKey="id"
+          rowCount={1000000} // 1M total rows
+          viewportStart={50000}
+          onViewportChange={onViewportChange}
+          virtualize={true}
+        />
+      );
+
+      // Critical: total scroll height should be 1M * 36px = 36,000,000px
+      // Proves virtualizer is using rowCount, not data.length (2)
+      const virtualBody = container.querySelector('[style*="position: relative"]') as HTMLElement;
+      expect(virtualBody).toHaveStyle({ height: '36000000px' });
+
+      // Virtualizer starts at scroll position 0, rendering indices 0-~13
+      // Those are outside our slice [50000, 50002), so they should be placeholders
+      // This verifies slice mode correctly shows placeholders for out-of-range rows
+      const placeholders = container.querySelectorAll('.askturret-grid-virtual-row-placeholder');
+      expect(placeholders.length).toBeGreaterThan(0); // At least one placeholder renders
+
+      // The actual data rows (50000-50001) would only be visible after scrolling
+      // to position 50000*36px, which we don't simulate here
+      // Verify they're NOT in the DOM at scroll position 0 (correct behavior)
+      expect(screen.queryByText('Row 50000')).not.toBeInTheDocument();
+      expect(screen.queryByText('Row 50001')).not.toBeInTheDocument();
+    });
+  });
 });
