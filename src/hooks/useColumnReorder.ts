@@ -3,8 +3,8 @@ import type { ColumnDef } from '../DataGrid';
 
 interface UseColumnReorderProps<T> {
   columns: ColumnDef<T>[];
-  controlledOrder?: string[];
-  onColumnReorder?: (newOrder: string[]) => void;
+  controlledOrder?: string[] | undefined;
+  onColumnReorder?: ((newOrder: string[]) => void) | undefined;
 }
 
 interface UseColumnReorderReturn<T> {

@@ -51,7 +51,7 @@ export interface TopMoversProps {
 
 interface RankedItem extends MoverItem {
   rank: number;
-  previousRank?: number;
+  previousRank?: number | undefined;
 }
 
 const FLASH_DURATION = 1500;
