@@ -202,6 +202,11 @@ export function DataGrid<T extends object>({
   reorderable = false,
   columnOrder: controlledOrder,
   onColumnReorder,
+  // Controlled filter/sort
+  filter: controlledFilter,
+  onFilterChange,
+  sort: controlledSort,
+  onSortChange,
   // Row exit lifecycle
   rowClass,
   rowExitDuration = 0,
@@ -223,10 +228,14 @@ export function DataGrid<T extends object>({
     return columns as ColumnDef<T>[];
   }, [columns]);
 
-  // Sort state
-  const { sort, handleSort: handleSortBase } = useSortState();
+  // Filter state - controlled or uncontrolled
+  const [internalFilter, setInternalFilter] = useState('');
+  const filter = controlledFilter ?? internalFilter;
+  const handleFilterChange = onFilterChange ?? setInternalFilter;
 
-  const [filter, setFilter] = useState('');
+  // Sort state - controlled or uncontrolled
+  const { sort: internalSort, handleSort: handleSortBase } = useSortState();
+  const sort = controlledSort ?? internalSort;
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -272,11 +281,13 @@ export function DataGrid<T extends object>({
   const enableFlash = !disableFlash && !adaptiveDisable;
 
   // Determine if we should use WASM GridCore
+  // Disable when filter is controlled (external store already filtered)
   const shouldUseWasmCore = useMemo(() => {
+    if (onFilterChange) return false; // Controlled - skip internal filter
     if (useWasmCore === true) return true;
     if (useWasmCore === false) return false;
     return data.length > WASM_CORE_THRESHOLD;
-  }, [useWasmCore, data.length]);
+  }, [useWasmCore, data.length, onFilterChange]);
 
   // WASM view (GridCore integration)
   const { wasmCoreReady, wasmIndices } = useWasmView({
