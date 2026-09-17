@@ -68,20 +68,23 @@ Virtualization, sorting, filtering, and flash highlighting work out of the box.
 
 ### High-Frequency Updates
 
-For real-time streaming (trading, live dashboards), use `useGridStore` to pick your engine:
+For real-time streaming (trading, live dashboards), use `useGridStore` with unified `GridColumn` definitions:
 
 ```tsx
-import { DataGrid, useGridStore } from '@askturret/grid';
+import { DataGrid, useGridStore, deriveRowKey } from '@askturret/grid';
+
+// Define columns once - works for both grid (presentation) and store (engine)
+const columns = [
+  { name: 'id', header: 'ID', type: 'string', primaryKey: true, width: '80px' },
+  { name: 'symbol', header: 'Symbol', type: 'string', indexed: true, sortable: true },
+  { name: 'price', header: 'Price', type: 'number', align: 'right', flashOnChange: true },
+  { name: 'change', header: 'Change', type: 'number', align: 'right', formatter: (v) => `${v > 0 ? '+' : ''}${v}%` },
+];
 
 function TradingGrid() {
   const { data, updateRows, isReady } = useGridStore({
     storeType: 'worker', // Non-blocking updates
-    schema: [
-      { name: 'id', type: 'string', primaryKey: true },
-      { name: 'symbol', type: 'string', indexed: true },
-      { name: 'price', type: 'number' },
-      { name: 'change', type: 'number' },
-    ],
+    schema: columns, // Same columns - no duplication!
     initialData: positions,
   });
 
@@ -95,7 +98,7 @@ function TradingGrid() {
 
   if (!isReady) return <div>Loading...</div>;
 
-  return <DataGrid data={data} columns={columns} rowKey="id" />;
+  return <DataGrid data={data} columns={columns} rowKey={deriveRowKey(columns)} />;
 }
 ```
 
