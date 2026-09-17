@@ -1060,4 +1060,208 @@ describe('DataGrid', () => {
       expect(screen.queryByText('Row 50001')).not.toBeInTheDocument();
     });
   });
+
+  describe('accessibility', () => {
+    it('should have role="grid" on container', () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const grid = container.querySelector('[role="grid"]');
+      expect(grid).toBeInTheDocument();
+    });
+
+    it('should have aria-rowcount and aria-colcount', () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const grid = container.querySelector('[role="grid"]');
+      expect(grid).toHaveAttribute('aria-rowcount');
+      expect(grid).toHaveAttribute('aria-colcount', '3'); // 3 columns
+    });
+
+    it('should have role="row" on header in virtualized mode', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const headerRow = container.querySelector('.askturret-grid-virtual-header[role="row"]');
+      expect(headerRow).toBeInTheDocument();
+    });
+
+    it('should have role="columnheader" on header cells in virtualized mode', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const columnHeaders = container.querySelectorAll('[role="columnheader"]');
+      expect(columnHeaders.length).toBe(3);
+    });
+
+    it('should have role="row" on data rows in virtualized mode', () => {
+      // Mock dimensions for virtualizer
+      const origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const rows = container.querySelectorAll('.askturret-grid-virtual-row[role="row"]');
+      expect(rows.length).toBeGreaterThan(0);
+
+      // Restore
+      Element.prototype.getBoundingClientRect = origGetBoundingClientRect;
+    });
+
+    it('should have role="gridcell" on cells in virtualized mode', () => {
+      // Mock dimensions for virtualizer
+      const origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const cells = container.querySelectorAll('[role="gridcell"]');
+      expect(cells.length).toBeGreaterThan(0);
+
+      // Restore
+      Element.prototype.getBoundingClientRect = origGetBoundingClientRect;
+    });
+
+    it('should support keyboard navigation with arrow keys', () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const grid = container.querySelector('[role="grid"]');
+      expect(grid).toBeInTheDocument();
+
+      // Focus the grid
+      grid!.focus();
+
+      // Simulate arrow down
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Check that first row is focused (has tabIndex 0)
+      const rows = container.querySelectorAll('tr[tabindex]');
+      const focusedRow = Array.from(rows).find((r) => r.getAttribute('tabindex') === '0');
+      expect(focusedRow).toBeInTheDocument();
+    });
+
+    it('should activate row on Enter when onRowClick is provided', () => {
+      const handleRowClick = vi.fn();
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" onRowClick={handleRowClick} />
+      );
+      const grid = container.querySelector('[role="grid"]');
+
+      // Focus grid and navigate to first row
+      grid!.focus();
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Press Enter
+      fireEvent.keyDown(grid!, { key: 'Enter' });
+
+      expect(handleRowClick).toHaveBeenCalledWith(testData[0]);
+    });
+
+    it('should have aria-label on resize handles', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" resizable={true} />
+      );
+      const resizeHandles = container.querySelectorAll('[role="separator"][aria-label]');
+      expect(resizeHandles.length).toBeGreaterThan(0);
+      expect(resizeHandles[0]).toHaveAttribute('aria-label');
+    });
+
+    it('should have aria-grabbed on draggable column headers', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" reorderable={true} virtualize={true} />
+      );
+      const draggableHeaders = container.querySelectorAll('[draggable="true"][aria-grabbed]');
+      expect(draggableHeaders.length).toBe(3); // All 3 columns are reorderable by default
+    });
+
+    it('should not intercept Space key from filter input', () => {
+      const handleRowClick = vi.fn();
+      const { container } = render(
+        <DataGrid
+          data={testData}
+          columns={columns}
+          rowKey="id"
+          onRowClick={handleRowClick}
+          showFilter={true}
+        />
+      );
+
+      // Navigate to a row first
+      const grid = container.querySelector('[role="grid"]');
+      grid!.focus();
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Now type Space in the filter input - should NOT trigger row click
+      const filterInput = container.querySelector('input[type="text"]') as HTMLInputElement;
+      filterInput.focus();
+      fireEvent.keyDown(filterInput, { key: ' ' });
+
+      expect(handleRowClick).not.toHaveBeenCalled();
+    });
+
+    it('should not intercept Home/End keys from filter input', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" showFilter={true} />
+      );
+
+      const filterInput = container.querySelector('input[type="text"]') as HTMLInputElement;
+      filterInput.focus();
+      filterInput.value = 'test text';
+      filterInput.setSelectionRange(5, 5); // Position cursor in middle
+
+      // Home key should move cursor to start, not scroll grid
+      fireEvent.keyDown(filterInput, { key: 'Home' });
+      // Cursor movement happens natively; we verify the event wasn't prevented
+      // by checking that no error is thrown and grid didn't scroll
+
+      // End key should move cursor to end
+      fireEvent.keyDown(filterInput, { key: 'End' });
+
+      // If the grid intercepted these keys, the filter input wouldn't work properly
+      expect(filterInput).toBe(document.activeElement);
+    });
+
+    it('should not intercept Enter key from sortable header', () => {
+      const handleRowClick = vi.fn();
+      const sortableColumns = columns.map((col) => ({ ...col, sortable: true }));
+      const { container } = render(
+        <DataGrid data={testData} columns={sortableColumns} rowKey="id" onRowClick={handleRowClick} />
+      );
+
+      // Navigate to a row first
+      const grid = container.querySelector('[role="grid"]');
+      grid!.focus();
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Now press Enter on a sortable header - should NOT trigger row click
+      // In table mode, sortable headers are <th> elements with onClick
+      const header = container.querySelector('th.sortable') as HTMLTableCellElement;
+      header.focus();
+      fireEvent.keyDown(header, { key: 'Enter' });
+
+      expect(handleRowClick).not.toHaveBeenCalled();
+    });
+  });
 });

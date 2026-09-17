@@ -370,6 +370,9 @@ export function DataGrid<T extends object>({
   // Flash enabled when not explicitly disabled AND not adaptively disabled
   const enableFlash = !disableFlash && !adaptiveDisable;
 
+  // Keyboard navigation state
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number>(-1);
+
   // Determine if we should use WASM GridCore
   // Disable when filter is controlled (external store already filtered)
   const shouldUseWasmCore = useMemo(() => {
@@ -461,6 +464,66 @@ export function DataGrid<T extends object>({
     columns: normalizedColumns,
   });
 
+  // Keyboard navigation handler
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const totalRows = isSliceMode ? (rowCount ?? 0) : mergedData.length;
+      if (totalRows === 0) return;
+
+      // Only handle keyboard events when:
+      // 1. Target is the grid container itself (role="grid"), OR
+      // 2. Target is a row element (role="row" or <tr>)
+      // This prevents conflicts with filter inputs, header buttons, etc.
+      const target = e.target as HTMLElement;
+      const isGridContainer = target.getAttribute('role') === 'grid';
+      const isRow = target.getAttribute('role') === 'row' || target.tagName === 'TR';
+
+      if (!isGridContainer && !isRow) {
+        // Let the event bubble naturally for non-row targets
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusedRowIndex((prev) => Math.min(prev + 1, totalRows - 1));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusedRowIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case 'Home':
+          e.preventDefault();
+          setFocusedRowIndex(0);
+          if (parentRef.current) {
+            parentRef.current.scrollTop = 0;
+          }
+          break;
+        case 'End':
+          e.preventDefault();
+          setFocusedRowIndex(totalRows - 1);
+          if (parentRef.current) {
+            parentRef.current.scrollTop = parentRef.current.scrollHeight;
+          }
+          break;
+        case 'Enter':
+        case ' ':
+          if (onRowClick && focusedRowIndex >= 0 && focusedRowIndex < totalRows) {
+            e.preventDefault();
+            const row = isSliceMode ? getRowAtIndex(focusedRowIndex) : mergedData[focusedRowIndex]?.row;
+            if (row) {
+              onRowClick(row);
+            }
+          }
+          break;
+        case 'Escape':
+          setFocusedRowIndex(-1);
+          break;
+      }
+    },
+    [isSliceMode, rowCount, mergedData, onRowClick, focusedRowIndex, getRowAtIndex, parentRef]
+  );
+
   // R2: Parent orchestrates clearing leaving rows on sort change
   const handleSort = (field: string) => {
     if (onSortChange) {
@@ -511,20 +574,32 @@ export function DataGrid<T extends object>({
     return () => cancelAnimationFrame(handle);
   }, [virtualizer.range, onViewportChange]);
 
+  // Scroll focused row into view
+  useEffect(() => {
+    if (focusedRowIndex < 0) return;
+    if (shouldVirtualize) {
+      virtualizer.scrollToIndex(focusedRowIndex, { align: 'auto' });
+    }
+  }, [focusedRowIndex, shouldVirtualize, virtualizer]);
+
   // Render a single row for standard mode
   const renderTableRow = useCallback(
-    (row: T, isLeaving: boolean) => {
+    (row: T, isLeaving: boolean, rowIndex?: number) => {
       const key = getRowKey(row);
       // Lazy flash detection - only for visible rows, skip for leaving rows
       if (!isLeaving) {
         updateFlashForRow(row, key);
       }
       const rowClassValue = rowClass ? rowClass(row, { isLeaving }) : '';
+      const isFocused = rowIndex === focusedRowIndex;
       return (
         <tr
           key={key}
-          className={`${onRowClick ? 'clickable' : ''} ${rowClassValue}`.trim()}
+          className={`${onRowClick ? 'clickable' : ''} ${isFocused ? 'focused' : ''} ${rowClassValue}`.trim()}
+          aria-selected={isFocused ? true : undefined}
+          tabIndex={isFocused ? 0 : -1}
           onClick={onRowClick ? () => onRowClick(row) : undefined}
+          onFocus={() => rowIndex !== undefined && setFocusedRowIndex(rowIndex)}
         >
           {orderedColumns.map((col) => {
             const field = String(col.field);
@@ -543,26 +618,41 @@ export function DataGrid<T extends object>({
         </tr>
       );
     },
-    [orderedColumns, getRowKey, getCellFlashClass, onRowClick, updateFlashForRow, rowClass]
+    [
+      orderedColumns,
+      getRowKey,
+      getCellFlashClass,
+      onRowClick,
+      updateFlashForRow,
+      rowClass,
+      focusedRowIndex,
+      setFocusedRowIndex,
+    ]
   );
 
   // Render a virtualized row
   const renderVirtualRow = useCallback(
-    (row: T, isLeaving: boolean, style: React.CSSProperties) => {
+    (row: T, isLeaving: boolean, style: React.CSSProperties, rowIndex?: number) => {
       const key = getRowKey(row);
       // Lazy flash detection - only for visible rows, skip for leaving rows
       if (!isLeaving) {
         updateFlashForRow(row, key);
       }
       const rowClassValue = rowClass ? rowClass(row, { isLeaving }) : '';
+      const isFocused = rowIndex === focusedRowIndex;
       return (
         <div
           key={key}
-          className={`askturret-grid-virtual-row ${onRowClick ? 'clickable' : ''} ${rowClassValue}`.trim()}
+          className={`askturret-grid-virtual-row ${onRowClick ? 'clickable' : ''} ${isFocused ? 'focused' : ''} ${rowClassValue}`.trim()}
           style={style}
+          role="row"
+          aria-rowindex={rowIndex !== undefined ? rowIndex + 2 : undefined}
+          aria-selected={isFocused ? true : undefined}
+          tabIndex={isFocused ? 0 : -1}
           onClick={onRowClick ? () => onRowClick(row) : undefined}
+          onFocus={() => rowIndex !== undefined && setFocusedRowIndex(rowIndex)}
         >
-          {orderedColumns.map((col) => {
+          {orderedColumns.map((col, colIndex) => {
             const field = String(col.field);
             const value = getNestedValue(row, field);
             const flashClass = col.flashOnChange ? getCellFlashClass(key, field) : '';
@@ -576,6 +666,8 @@ export function DataGrid<T extends object>({
                 key={field}
                 className={`askturret-grid-virtual-cell ${alignClass} ${flashClass} ${customClass} ${resizable ? 'fixed-width' : ''}`.trim()}
                 style={resizable ? { width, minWidth: width, maxWidth: width } : { minWidth: col.width }}
+                role="gridcell"
+                aria-colindex={colIndex + 1}
               >
                 {col.formatter ? col.formatter(value, row) : String(value ?? '')}
               </div>
@@ -593,12 +685,14 @@ export function DataGrid<T extends object>({
       resizable,
       getColumnWidth,
       rowClass,
+      focusedRowIndex,
+      setFocusedRowIndex,
     ]
   );
 
   // Render virtualized header
   const renderVirtualHeader = () => (
-    <div className="askturret-grid-virtual-header" onDrop={handleDrop}>
+    <div className="askturret-grid-virtual-header" role="row" aria-rowindex={1} onDrop={handleDrop}>
       {orderedColumns.map((col, index) => {
         const field = String(col.field);
         const isSortable = col.sortable !== false;
@@ -620,6 +714,8 @@ export function DataGrid<T extends object>({
               onDragStart: (e: React.DragEvent) => handleDragStart(field, e),
               onDragOver: (e: React.DragEvent) => handleDragOver(field, index, e),
               onDragEnd: handleDragEnd,
+              'aria-grabbed': isDragging,
+              'aria-label': `${col.header} column, reorderable`,
             }
           : {};
 
@@ -650,7 +746,13 @@ export function DataGrid<T extends object>({
               <span className="sort-indicator">{sort.direction === 'asc' ? ' ▲' : ' ▼'}</span>
             )}
             {isColumnResizable && (
-              <div className={resizeHandleClasses} onMouseDown={(e) => handleResizeStart(field, e)} />
+              <div
+                className={resizeHandleClasses}
+                onMouseDown={(e) => handleResizeStart(field, e)}
+                role="separator"
+                aria-label={`Resize ${col.header} column`}
+                aria-orientation="vertical"
+              />
             )}
           </>
         );
@@ -662,12 +764,24 @@ export function DataGrid<T extends object>({
             className={headerClasses}
             style={style}
             onClick={() => handleSort(field)}
+            role="columnheader"
+            aria-colindex={index + 1}
+            aria-sort={
+              sort.field === field ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined
+            }
             {...dragProps}
           >
             {headerContent}
           </button>
         ) : (
-          <div key={field} className={headerClasses} style={style} {...dragProps}>
+          <div
+            key={field}
+            className={headerClasses}
+            style={style}
+            role="columnheader"
+            aria-colindex={index + 1}
+            {...dragProps}
+          >
             {headerContent}
           </div>
         );
@@ -705,6 +819,8 @@ export function DataGrid<T extends object>({
               onDragStart: (e: React.DragEvent<HTMLTableCellElement>) => handleDragStart(field, e),
               onDragOver: (e: React.DragEvent<HTMLTableCellElement>) => handleDragOver(field, index, e),
               onDragEnd: handleDragEnd,
+              'aria-grabbed': isDragging,
+              'aria-label': `${col.header} column, reorderable`,
             }
           : {};
 
@@ -730,7 +846,13 @@ export function DataGrid<T extends object>({
               <span className="sort-indicator">{sort.direction === 'asc' ? '▲' : '▼'}</span>
             )}
             {isColumnResizable && (
-              <div className={resizeHandleClasses} onMouseDown={(e) => handleResizeStart(field, e)} />
+              <div
+                className={resizeHandleClasses}
+                onMouseDown={(e) => handleResizeStart(field, e)}
+                role="separator"
+                aria-label={`Resize ${col.header} column`}
+                aria-orientation="vertical"
+              />
             )}
           </th>
         );
@@ -744,8 +866,20 @@ export function DataGrid<T extends object>({
       ? ({ '--grid-row-exit-duration': `${rowExitDuration}ms` } as React.CSSProperties)
       : undefined;
 
+  // Accessibility: aria-rowcount includes header + data rows
+  const totalRowCount = isSliceMode ? (rowCount ?? 0) + 1 : (mergedData.length || visibleCount) + 1;
+  const colCount = orderedColumns.length;
+
   return (
-    <div className={containerClass} style={containerStyle}>
+    <div
+      className={containerClass}
+      style={containerStyle}
+      role="grid"
+      aria-rowcount={totalRowCount}
+      aria-colcount={colCount}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
       {/* Filter input */}
       {showFilter && (
         <div className="askturret-grid-filter">
@@ -806,26 +940,36 @@ export function DataGrid<T extends object>({
                   }
 
                   // Row is in slice - render normally (no leaving rows in slice mode)
-                  return renderVirtualRow(row, false, {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  });
+                  return renderVirtualRow(
+                    row,
+                    false,
+                    {
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    },
+                    virtualRow.index
+                  );
                 } else {
                   // Non-slice mode - use mergedData (includes leaving rows)
                   const item = mergedData[virtualRow.index];
                   if (!item) return null;
-                  return renderVirtualRow(item.row, item.isLeaving, {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  });
+                  return renderVirtualRow(
+                    item.row,
+                    item.isLeaving,
+                    {
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    },
+                    virtualRow.index
+                  );
                 }
               })}
             </div>
@@ -850,7 +994,7 @@ export function DataGrid<T extends object>({
                   </td>
                 </tr>
               ) : (
-                mergedData.map((item) => renderTableRow(item.row, item.isLeaving))
+                mergedData.map((item, index) => renderTableRow(item.row, item.isLeaving, index))
               )}
             </tbody>
           </table>
