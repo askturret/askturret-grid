@@ -36,6 +36,61 @@ jobs:
       - name: Build package
         run: npm run build
 
+  test-react-19:
+    name: Test React 19
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install React 19
+        run: npm install --save-dev react@^19.0.0 react-dom@^19.0.0 @types/react@^19.0.0 @types/react-dom@^19.0.0
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build package
+        run: npm run build
+
+  test-browser:
+    name: Cross-browser Tests (Firefox)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps firefox
+
+      - name: Run browser tests
+        run: npm run test:browser
+
   build-demo:
     name: Build Demo
     runs-on: ubuntu-latest

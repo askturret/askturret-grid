@@ -17,8 +17,8 @@ describe('WorkerGridStore', () => {
     // Mock URL.createObjectURL/revokeObjectURL
     mockCreateObjectURL = vi.fn().mockReturnValue('blob:mock-worker-url');
     mockRevokeObjectURL = vi.fn();
-    global.URL.createObjectURL = mockCreateObjectURL;
-    global.URL.revokeObjectURL = mockRevokeObjectURL;
+    globalThis.URL.createObjectURL = mockCreateObjectURL;
+    globalThis.URL.revokeObjectURL = mockRevokeObjectURL;
 
     // Mock Worker
     mockWorker = {
@@ -67,7 +67,7 @@ describe('WorkerGridStore', () => {
     };
 
     WorkerConstructor = vi.fn().mockImplementation(() => mockWorker);
-    global.Worker = WorkerConstructor as unknown as typeof Worker;
+    globalThis.Worker = WorkerConstructor as unknown as typeof Worker;
   });
 
   afterEach(() => {

@@ -24,7 +24,7 @@ export function useAdaptiveFlash(enabled: boolean = true): AdaptiveFlashResult {
   const frameCountRef = useRef(0);
   const lastFrameTimeRef = useRef(performance.now());
   const consecutiveCountRef = useRef(0);
-  const rafRef = useRef<number>();
+  const rafRef = useRef<number | undefined>(undefined);
 
   // Ref to track current disableFlash state - read inside rAF loop without triggering effect re-runs
   const disableFlashRef = useRef(disableFlash);

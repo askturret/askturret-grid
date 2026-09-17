@@ -7,6 +7,8 @@ export default defineConfig({
     passWithNoTests: true,
     setupFiles: ['./src/test-setup.ts'],
     globals: true,
+    // Exclude browser-specific tests - they should only run via vitest.browser.config.ts
+    exclude: ['**/node_modules/**', '**/*.browser.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json', 'lcov'],
