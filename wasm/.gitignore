@@ -2,6 +2,3 @@
 /target
 /pkg
 /pkg-node
-
-# Cargo lock is not needed for libraries
-Cargo.lock

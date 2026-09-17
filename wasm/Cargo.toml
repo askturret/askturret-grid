@@ -1,10 +1,10 @@
 [package]
 name = "askturret-grid-wasm"
-version = "0.1.0"
+version = "0.2.2"
 authors = ["AskTurret"]
 edition = "2021"
-license = "MIT"
-repository = "https://github.com/alprimak/askturret-grid"
+license = "Apache-2.0"
+repository = "https://github.com/askturret/askturret-grid"
 description = "High-performance WASM acceleration for @askturret/grid - sorting, filtering, and trigram indexing"
 
 [lib]

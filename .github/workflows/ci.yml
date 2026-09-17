@@ -134,6 +134,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify version/license/repository parity
+        run: |
+          # Extract root package.json version
+          ROOT_VERSION=$(jq -r '.version' package.json)
+
+          # Extract wasm package.json fields
+          WASM_PKG_VERSION=$(jq -r '.version' wasm/package.json)
+          WASM_PKG_LICENSE=$(jq -r '.license' wasm/package.json)
+          WASM_PKG_REPO=$(jq -r '.repository.url' wasm/package.json)
+
+          # Extract wasm Cargo.toml fields (using basic grep/sed since tomlq may not be available)
+          WASM_CARGO_VERSION=$(grep '^version = ' wasm/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          WASM_CARGO_LICENSE=$(grep '^license = ' wasm/Cargo.toml | head -1 | sed 's/license = "\(.*\)"/\1/')
+          WASM_CARGO_REPO=$(grep '^repository = ' wasm/Cargo.toml | head -1 | sed 's/repository = "\(.*\)"/\1/')
+
+          # Verify versions match
+          if [ "$ROOT_VERSION" != "$WASM_PKG_VERSION" ]; then
+            echo "❌ Version mismatch: root package.json ($ROOT_VERSION) != wasm/package.json ($WASM_PKG_VERSION)"
+            exit 1
+          fi
+          if [ "$ROOT_VERSION" != "$WASM_CARGO_VERSION" ]; then
+            echo "❌ Version mismatch: root package.json ($ROOT_VERSION) != wasm/Cargo.toml ($WASM_CARGO_VERSION)"
+            exit 1
+          fi
+
+          # Verify licenses are Apache-2.0
+          if [ "$WASM_PKG_LICENSE" != "Apache-2.0" ]; then
+            echo "❌ License error: wasm/package.json license is $WASM_PKG_LICENSE, expected Apache-2.0"
+            exit 1
+          fi
+          if [ "$WASM_CARGO_LICENSE" != "Apache-2.0" ]; then
+            echo "❌ License error: wasm/Cargo.toml license is $WASM_CARGO_LICENSE, expected Apache-2.0"
+            exit 1
+          fi
+
+          # Verify repositories point to askturret/askturret-grid
+          if [[ "$WASM_PKG_REPO" != *"askturret/askturret-grid"* ]]; then
+            echo "❌ Repository error: wasm/package.json repository is $WASM_PKG_REPO, expected askturret/askturret-grid"
+            exit 1
+          fi
+          if [[ "$WASM_CARGO_REPO" != *"askturret/askturret-grid"* ]]; then
+            echo "❌ Repository error: wasm/Cargo.toml repository is $WASM_CARGO_REPO, expected askturret/askturret-grid"
+            exit 1
+          fi
+
+          echo "✅ All version/license/repository checks passed"
+          echo "   Version: $ROOT_VERSION"
+          echo "   License: Apache-2.0"
+          echo "   Repository: askturret/askturret-grid"
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:

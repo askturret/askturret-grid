@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Object, Reflect, Uint32Array};
 use std::collections::HashMap;
@@ -873,8 +875,8 @@ pub fn bench_store_load(count: u32) -> f64 {
     }
 
     let start = Date::now();
-    let mut store = GridStore::new(&schema.into()).unwrap();
-    store.load_rows(&rows.into()).unwrap();
+    let mut store = GridStore::new(&schema.into()).unwrap_or_else(|_| panic!("Failed to create GridStore"));
+    store.load_rows(&rows.into()).unwrap_or_else(|_| panic!("Failed to load rows"));
     Date::now() - start
 }
 
@@ -904,8 +906,8 @@ pub fn bench_store_filter(count: u32) -> f64 {
         rows.push(&row);
     }
 
-    let mut store = GridStore::new(&schema.into()).unwrap();
-    store.load_rows(&rows.into()).unwrap();
+    let mut store = GridStore::new(&schema.into()).unwrap_or_else(|_| panic!("Failed to create GridStore"));
+    store.load_rows(&rows.into()).unwrap_or_else(|_| panic!("Failed to load rows"));
 
     // Benchmark filter
     let start = Date::now();
@@ -946,8 +948,8 @@ pub fn bench_store_update(count: u32, update_count: u32) -> f64 {
         rows.push(&row);
     }
 
-    let mut store = GridStore::new(&schema.into()).unwrap();
-    store.load_rows(&rows.into()).unwrap();
+    let mut store = GridStore::new(&schema.into()).unwrap_or_else(|_| panic!("Failed to create GridStore"));
+    store.load_rows(&rows.into()).unwrap_or_else(|_| panic!("Failed to load rows"));
 
     // Create batch update
     let updates = Array::new();
@@ -960,7 +962,7 @@ pub fn bench_store_update(count: u32, update_count: u32) -> f64 {
 
     // Benchmark batch update
     let start = Date::now();
-    store.batch_update(&updates.into()).unwrap();
+    store.batch_update(&updates.into()).unwrap_or_else(|_| panic!("Failed to batch update"));
     Date::now() - start
 }
 
@@ -992,8 +994,8 @@ pub fn bench_intersect_heavy_filter(count: u32) -> f64 {
         rows.push(&row);
     }
 
-    let mut store = GridStore::new(&schema.into()).unwrap();
-    store.load_rows(&rows.into()).unwrap();
+    let mut store = GridStore::new(&schema.into()).unwrap_or_else(|_| panic!("Failed to create GridStore"));
+    store.load_rows(&rows.into()).unwrap_or_else(|_| panic!("Failed to load rows"));
 
     // Multi-trigram query that requires intersecting many posting lists
     let start = Date::now();
@@ -1030,8 +1032,8 @@ pub fn bench_row_matching(count: u32) -> f64 {
         rows.push(&row);
     }
 
-    let mut store = GridStore::new(&schema.into()).unwrap();
-    store.load_rows(&rows.into()).unwrap();
+    let mut store = GridStore::new(&schema.into()).unwrap_or_else(|_| panic!("Failed to create GridStore"));
+    store.load_rows(&rows.into()).unwrap_or_else(|_| panic!("Failed to load rows"));
 
     // Query that will match many rows and trigger row_matches_filter many times
     let start = Date::now();
