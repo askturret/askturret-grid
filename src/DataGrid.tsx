@@ -9,6 +9,7 @@ import { useWasmView } from './hooks/useWasmView';
 import { useSortedData } from './hooks/useSortedData';
 import { useRowExit } from './hooks/useRowExit';
 import { getNestedValue } from './utils/nested';
+import { type GridColumn, toColumnDef } from './columns';
 
 /**
  * Column definition for the DataGrid
@@ -51,8 +52,8 @@ export interface ColumnDef<T> {
 export interface DataGridProps<T> {
   /** Data array to display */
   data: T[];
-  /** Column definitions */
-  columns: ColumnDef<T>[];
+  /** Column definitions - accepts legacy ColumnDef or unified GridColumn */
+  columns: ColumnDef<T>[] | GridColumn<T>[];
   /** Unique row identifier - field name or function */
   rowKey: keyof T | ((row: T) => string);
   /** Message shown when data is empty */
@@ -184,6 +185,23 @@ export function DataGrid<T extends object>({
   rowClass,
   rowExitDuration = 0,
 }: DataGridProps<T>) {
+  // R1: Runtime shape discrimination - normalize GridColumn[] to ColumnDef[]
+  // GridColumn has 'name' (required) and no 'field'; ColumnDef has 'field' (required) and no 'name'
+  const normalizedColumns: ColumnDef<T>[] = useMemo(() => {
+    if (columns.length === 0) return [];
+
+    const firstCol = columns[0];
+    const isGridColumn = 'name' in firstCol && !('field' in firstCol);
+
+    if (isGridColumn) {
+      // Convert GridColumn[] to ColumnDef[]
+      return (columns as GridColumn<T>[]).map(toColumnDef);
+    }
+
+    // Already ColumnDef[], use as-is
+    return columns as ColumnDef<T>[];
+  }, [columns]);
+
   // Sort state
   const { sort, handleSort: handleSortBase } = useSortState();
 
@@ -204,14 +222,14 @@ export function DataGrid<T extends object>({
     handleDrop,
     handleDragEnd,
   } = useColumnReorder({
-    columns,
+    columns: normalizedColumns,
     controlledOrder,
     onColumnReorder,
   });
 
   // Column resizing
   const { columnWidths, resizing, getColumnWidth, handleResizeStart } = useColumnResize({
-    columns,
+    columns: normalizedColumns,
     controlledWidths,
     onColumnResize,
     minColumnWidth,
@@ -242,7 +260,7 @@ export function DataGrid<T extends object>({
   // WASM view (GridCore integration)
   const { wasmCoreReady, wasmIndices } = useWasmView({
     data,
-    columns,
+    columns: normalizedColumns,
     filter,
     sort,
     shouldUseWasmCore,
@@ -263,7 +281,7 @@ export function DataGrid<T extends object>({
     data,
     filter,
     filterFields,
-    columns,
+    columns: normalizedColumns,
     sort,
     wasmCoreReady,
     wasmIndices,
@@ -282,7 +300,7 @@ export function DataGrid<T extends object>({
   // Flash detection (lazy, per visible row during render)
   const { updateFlashForRow, getCellFlashClass } = useFlashDetection({
     enableFlash,
-    columns,
+    columns: normalizedColumns,
   });
 
   // R2: Parent orchestrates clearing leaving rows on sort change
