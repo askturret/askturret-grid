@@ -457,6 +457,24 @@ export function DataGrid<T extends object>({
     overscan: 10,
   });
 
+  // Step 4: Viewport dispatch effect (coalesced, fires only when onViewportChange provided)
+  useEffect(() => {
+    if (!onViewportChange) return;
+
+    const items = virtualizer.getVirtualItems();
+    if (items.length === 0) return;
+
+    const startIndex = items[0].index;
+    const endIndex = items[items.length - 1].index;
+
+    // Coalesce updates - use requestAnimationFrame to batch rapid scroll events
+    const handle = requestAnimationFrame(() => {
+      onViewportChange(startIndex, endIndex);
+    });
+
+    return () => cancelAnimationFrame(handle);
+  }, [virtualizer.range, onViewportChange]);
+
   // Render a single row for standard mode
   const renderTableRow = useCallback(
     (row: T, isLeaving: boolean) => {
@@ -719,16 +737,58 @@ export function DataGrid<T extends object>({
               }}
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
-                const item = mergedData[virtualRow.index];
-                if (!item) return null;
-                return renderVirtualRow(item.row, item.isLeaving, {
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
-                });
+                // Step 5: Slice mode placeholder rendering
+                const isSliceMode = rowCount !== undefined && viewportStart !== undefined;
+
+                if (isSliceMode) {
+                  // In slice mode, use getRowAtIndex to map absolute index to slice offset
+                  const row = getRowAtIndex(virtualRow.index);
+
+                  if (row === undefined) {
+                    // Out-of-slice row - render placeholder
+                    const placeholderContent = renderPlaceholderRow
+                      ? renderPlaceholderRow(virtualRow.index)
+                      : <div className="askturret-grid-virtual-row-placeholder">Loading...</div>;
+
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${virtualRow.size}px`,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        {placeholderContent}
+                      </div>
+                    );
+                  }
+
+                  // Row is in slice - render normally (no leaving rows in slice mode)
+                  return renderVirtualRow(row, false, {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  });
+                } else {
+                  // Non-slice mode - use mergedData (includes leaving rows)
+                  const item = mergedData[virtualRow.index];
+                  if (!item) return null;
+                  return renderVirtualRow(item.row, item.isLeaving, {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  });
+                }
               })}
             </div>
           </div>
