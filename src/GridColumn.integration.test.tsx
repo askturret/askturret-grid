@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, act } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { type GridColumn, deriveRowKey } from './columns';
 import { DataGrid } from './DataGrid';
@@ -240,6 +240,72 @@ describe('GridColumn integration with DataGrid + useGridStore', () => {
       // Verify this rowKey works with DataGrid
       render(<DataGrid data={testData} columns={unifiedColumns} rowKey={rowKey} />);
       expect(screen.getByText('AAPL')).toBeInTheDocument();
+    });
+
+    it('wires store.data into DataGrid and filters narrow the displayed rows', () => {
+      // This test actually binds store.data to DataGrid's data prop and verifies
+      // that calling setFilter on the store narrows what the grid displays
+
+      const columns: GridColumn<TestRow>[] = [
+        {
+          name: 'id',
+          header: 'ID',
+          type: 'string',
+          primaryKey: true,
+        },
+        {
+          name: 'symbol',
+          header: 'Symbol',
+          type: 'string',
+          indexed: true,
+        },
+        {
+          name: 'price',
+          header: 'Price',
+          type: 'number',
+        },
+      ];
+
+      // Create a wrapper component that wires store.data into DataGrid
+      function IntegratedGridWithStore() {
+        const store = useGridStore({
+          storeType: 'js',
+          schema: columns,
+          initialData: testData,
+        });
+
+        if (!store.isReady) {
+          return <div>Loading...</div>;
+        }
+
+        return (
+          <div>
+            <button onClick={() => store.setFilter('AAPL')}>Filter to AAPL</button>
+            <DataGrid data={store.data} columns={columns} rowKey={deriveRowKey(columns)} />
+          </div>
+        );
+      }
+
+      const { rerender } = render(<IntegratedGridWithStore />);
+
+      // Initially, all rows should be visible
+      expect(screen.getByText('AAPL')).toBeInTheDocument();
+      expect(screen.getByText('GOOGL')).toBeInTheDocument();
+      expect(screen.getByText('MSFT')).toBeInTheDocument();
+
+      // Click the filter button to filter to just AAPL
+      const filterButton = screen.getByText('Filter to AAPL');
+      act(() => {
+        filterButton.click();
+      });
+
+      // After filtering, only AAPL should be visible
+      expect(screen.getByText('AAPL')).toBeInTheDocument();
+      expect(screen.queryByText('GOOGL')).not.toBeInTheDocument();
+      expect(screen.queryByText('MSFT')).not.toBeInTheDocument();
+
+      // This confirms the full R6(a) scenario:
+      // unified columns → grid renders → store filters → grid shows filtered view ✓
     });
   });
 
