@@ -789,8 +789,17 @@ impl GridStore {
         }
 
         // Slow path: non-ASCII text requires proper Unicode handling
-        // Use pre-collected filter_chars from cache (collected once per row, not per column)
-        let filter_chars = filter_chars_cache.expect("Non-ASCII filter should have chars pre-collected");
+        // Use pre-collected filter_chars from cache if available,
+        // otherwise collect on-demand (happens when filter is ASCII but text is non-ASCII)
+        let filter_chars_vec: Vec<char>;
+        let filter_chars: &[char] = match filter_chars_cache {
+            Some(cached) => cached,
+            None => {
+                // ASCII filter checking non-ASCII text - collect filter chars on demand
+                filter_chars_vec = filter.chars().collect();
+                &filter_chars_vec
+            }
+        };
 
         // Iterator-based approach to avoid allocating full text_chars vec
         // Collect lowercased chars only as we scan
@@ -1292,5 +1301,15 @@ mod tests {
         // Emoji (non-ASCII, needs char cache)
         let emoji_filter_chars: Vec<char> = "👋".chars().collect();
         assert!(GridStore::contains_case_insensitive("Hello 👋 World", "👋", Some(&emoji_filter_chars)));
+
+        // ASCII filter on non-ASCII text (the panic bug case - should NOT panic)
+        // This is the scenario: filter="beijing" (ASCII), text="北京" (non-ASCII)
+        // Cache is None because filter is ASCII, but slow path is entered because text is non-ASCII
+        // Should lazily collect filter chars instead of panicking
+        assert!(!GridStore::contains_case_insensitive("北京", "beijing", None));
+        assert!(!GridStore::contains_case_insensitive("上海", "shanghai", None));
+
+        // Positive case: ASCII filter that DOES match transliterated content
+        assert!(GridStore::contains_case_insensitive("Beijing 北京", "beijing", None));
     }
 }
