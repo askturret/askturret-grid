@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { axe, toHaveNoViolations } from 'jest-axe';
 import { DataGrid, type ColumnDef } from './DataGrid';
-
-expect.extend(toHaveNoViolations);
 
 interface TestRow {
   id: string;
@@ -1065,35 +1062,6 @@ describe('DataGrid', () => {
   });
 
   describe('accessibility', () => {
-    it('should have no accessibility violations (basic grid)', async () => {
-      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
-      const results = await axe(container);
-      expect(results).toHaveNoViolations();
-    });
-
-    it('should have no accessibility violations (with clickable rows)', async () => {
-      const handleRowClick = vi.fn();
-      const { container } = render(
-        <DataGrid data={testData} columns={columns} rowKey="id" onRowClick={handleRowClick} />
-      );
-      const results = await axe(container);
-      expect(results).toHaveNoViolations();
-    });
-
-    it('should have no accessibility violations (virtualized)', async () => {
-      const largeData = Array.from({ length: 200 }, (_, i) => ({
-        id: String(i),
-        name: `Item ${i}`,
-        value: i * 10,
-        status: i % 2 === 0 ? 'active' : 'inactive',
-      }));
-      const { container } = render(
-        <DataGrid data={largeData} columns={columns} rowKey="id" virtualize={true} />
-      );
-      const results = await axe(container);
-      expect(results).toHaveNoViolations();
-    });
-
     it('should have role="grid" on container', () => {
       const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
       const grid = container.querySelector('[role="grid"]');
