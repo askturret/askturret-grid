@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  toColumnDef,
-  toColumnSchema,
-  deriveRowKey,
-  type GridColumn,
-} from './columns';
+import { toColumnDef, toColumnSchema, deriveRowKey, type GridColumn } from './columns';
 
 describe('toColumnDef', () => {
   it('converts GridColumn to ColumnDef with all fields', () => {
@@ -242,16 +237,12 @@ describe('deriveRowKey', () => {
       },
     ];
 
-    expect(() => deriveRowKey(columns)).toThrow(
-      'No column has `primaryKey: true`'
-    );
+    expect(() => deriveRowKey(columns)).toThrow('No column has `primaryKey: true`');
   });
 
   it('throws when columns array is empty', () => {
     const columns: GridColumn<any>[] = [];
 
-    expect(() => deriveRowKey(columns)).toThrow(
-      'No column has `primaryKey: true`'
-    );
+    expect(() => deriveRowKey(columns)).toThrow('No column has `primaryKey: true`');
   });
 });

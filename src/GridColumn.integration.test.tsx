@@ -48,7 +48,6 @@ const unifiedColumns: GridColumn<TestRow>[] = [
 ];
 
 describe('GridColumn integration with DataGrid + useGridStore', () => {
-
   it('unified GridColumn array works with both grid and store', () => {
     // Verify that unifiedColumns can be converted to both ColumnDef and ColumnSchema
 

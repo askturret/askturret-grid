@@ -141,9 +141,7 @@ export function toColumnSchema<T>(column: GridColumn<T>): ColumnSchema {
  * @returns The field name of the primary key column, or a function that generates row keys
  * @throws {Error} If no column has primaryKey: true (R4)
  */
-export function deriveRowKey<T>(
-  columns: GridColumn<T>[]
-): keyof T | ((row: T) => string) {
+export function deriveRowKey<T>(columns: GridColumn<T>[]): keyof T | ((row: T) => string) {
   const pkColumn = columns.find((col) => col.primaryKey === true);
 
   // R4: deriveRowKey fallback - must throw if no primaryKey, not silently pick first

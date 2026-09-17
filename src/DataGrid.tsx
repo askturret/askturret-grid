@@ -375,7 +375,8 @@ export function DataGrid<T extends object>({
       e.preventDefault();
       if (!dragging || dragging.targetIndex === null) return;
 
-      const currentOrder = columnOrder.length > 0 ? columnOrder : normalizedColumns.map((c) => String(c.field));
+      const currentOrder =
+        columnOrder.length > 0 ? columnOrder : normalizedColumns.map((c) => String(c.field));
 
       const fromIndex = currentOrder.indexOf(dragging.field);
       if (fromIndex === -1) return;
