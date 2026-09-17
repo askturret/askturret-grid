@@ -46,3 +46,9 @@ jobs:
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm provenance
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          PACKAGE_VERSION=$(node -e "console.log(require('./package.json').version)")
+          npm audit signatures @askturret/grid@${PACKAGE_VERSION}
