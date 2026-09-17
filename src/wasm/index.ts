@@ -61,7 +61,6 @@ export async function initWasm(wasmUrl?: string): Promise<boolean> {
 async function loadWasmModule(): Promise<WasmModule | null> {
   try {
     // Dynamic import of the WASM package
-    // @ts-expect-error - module may not exist, that's ok
     const wasm = await import('@askturret/grid-wasm');
 
     // Initialize the WASM module with optional custom URL

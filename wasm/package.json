@@ -23,11 +23,12 @@
     "performance"
   ],
   "files": [
-    "pkg/*"
+    "pkg/*",
+    "index.d.ts"
   ],
   "main": "pkg/askturret_grid_wasm.js",
   "module": "pkg/askturret_grid_wasm.js",
-  "types": "pkg/askturret_grid_wasm.d.ts",
+  "types": "index.d.ts",
   "sideEffects": [
     "pkg/askturret_grid_wasm.js"
   ],

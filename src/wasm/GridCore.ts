@@ -62,7 +62,6 @@ export async function initGridCore(): Promise<boolean> {
 
 async function loadWasm(): Promise<WasmModule | null> {
   try {
-    // @ts-expect-error - module may not exist
     const wasm = await import('@askturret/grid-wasm');
     if (wasm.default && typeof wasm.default === 'function') {
       await wasm.default();
