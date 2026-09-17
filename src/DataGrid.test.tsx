@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { DataGrid, type ColumnDef } from './DataGrid';
+
+expect.extend(toHaveNoViolations);
 
 interface TestRow {
   id: string;
@@ -1058,6 +1061,133 @@ describe('DataGrid', () => {
       // Verify they're NOT in the DOM at scroll position 0 (correct behavior)
       expect(screen.queryByText('Row 50000')).not.toBeInTheDocument();
       expect(screen.queryByText('Row 50001')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('should have no accessibility violations (basic grid)', async () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const results = await axe(container);
+      expect(results).toHaveNoViolations();
+    });
+
+    it('should have no accessibility violations (with clickable rows)', async () => {
+      const handleRowClick = vi.fn();
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" onRowClick={handleRowClick} />
+      );
+      const results = await axe(container);
+      expect(results).toHaveNoViolations();
+    });
+
+    it('should have no accessibility violations (virtualized)', async () => {
+      const largeData = Array.from({ length: 200 }, (_, i) => ({
+        id: String(i),
+        name: `Item ${i}`,
+        value: i * 10,
+        status: i % 2 === 0 ? 'active' : 'inactive',
+      }));
+      const { container } = render(
+        <DataGrid data={largeData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const results = await axe(container);
+      expect(results).toHaveNoViolations();
+    });
+
+    it('should have role="grid" on container', () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const grid = container.querySelector('[role="grid"]');
+      expect(grid).toBeInTheDocument();
+    });
+
+    it('should have aria-rowcount and aria-colcount', () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const grid = container.querySelector('[role="grid"]');
+      expect(grid).toHaveAttribute('aria-rowcount');
+      expect(grid).toHaveAttribute('aria-colcount', '3'); // 3 columns
+    });
+
+    it('should have role="row" on header in virtualized mode', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const headerRow = container.querySelector('.askturret-grid-virtual-header[role="row"]');
+      expect(headerRow).toBeInTheDocument();
+    });
+
+    it('should have role="columnheader" on header cells in virtualized mode', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const columnHeaders = container.querySelectorAll('[role="columnheader"]');
+      expect(columnHeaders.length).toBe(3);
+    });
+
+    it('should have role="row" on data rows in virtualized mode', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const rows = container.querySelectorAll('.askturret-grid-virtual-row[role="row"]');
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    it('should have role="gridcell" on cells in virtualized mode', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
+      );
+      const cells = container.querySelectorAll('[role="gridcell"]');
+      expect(cells.length).toBeGreaterThan(0);
+    });
+
+    it('should support keyboard navigation with arrow keys', () => {
+      const { container } = render(<DataGrid data={testData} columns={columns} rowKey="id" />);
+      const grid = container.querySelector('[role="grid"]');
+      expect(grid).toBeInTheDocument();
+
+      // Focus the grid
+      grid!.focus();
+
+      // Simulate arrow down
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Check that first row is focused (has tabIndex 0)
+      const rows = container.querySelectorAll('tr[tabindex]');
+      const focusedRow = Array.from(rows).find((r) => r.getAttribute('tabindex') === '0');
+      expect(focusedRow).toBeInTheDocument();
+    });
+
+    it('should activate row on Enter when onRowClick is provided', () => {
+      const handleRowClick = vi.fn();
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" onRowClick={handleRowClick} />
+      );
+      const grid = container.querySelector('[role="grid"]');
+
+      // Focus grid and navigate to first row
+      grid!.focus();
+      fireEvent.keyDown(grid!, { key: 'ArrowDown' });
+
+      // Press Enter
+      fireEvent.keyDown(grid!, { key: 'Enter' });
+
+      expect(handleRowClick).toHaveBeenCalledWith(testData[0]);
+    });
+
+    it('should have aria-label on resize handles', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" resizable={true} />
+      );
+      const resizeHandles = container.querySelectorAll('[role="separator"][aria-label]');
+      expect(resizeHandles.length).toBeGreaterThan(0);
+      expect(resizeHandles[0]).toHaveAttribute('aria-label');
+    });
+
+    it('should have aria-grabbed on draggable column headers', () => {
+      const { container } = render(
+        <DataGrid data={testData} columns={columns} rowKey="id" reorderable={true} virtualize={true} />
+      );
+      const draggableHeaders = container.querySelectorAll('[draggable="true"][aria-grabbed]');
+      expect(draggableHeaders.length).toBe(3); // All 3 columns are reorderable by default
     });
   });
 });
