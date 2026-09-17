@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Object, Reflect, Uint32Array};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 // ============================================================================
 // Initialization
@@ -94,8 +94,9 @@ struct Column {
 // ============================================================================
 
 struct TrigramIndex {
-    // trigram (3 Unicode code points) -> set of row indices
-    index: HashMap<String, HashSet<u32>>,
+    // trigram (3 Unicode code points) -> sorted vec of row indices
+    // Sorted vecs are more memory-efficient and faster to intersect than HashSet
+    index: HashMap<String, Vec<u32>>,
 }
 
 impl TrigramIndex {
@@ -122,19 +123,26 @@ impl TrigramIndex {
             .collect()
     }
 
-    /// Add a row to the index - O(text_length)
+    /// Add a row to the index - O(text_length * log(posting_list_size))
     fn add(&mut self, row: u32, text: &str) {
         for trigram in Self::generate_trigrams(text) {
-            self.index.entry(trigram).or_default().insert(row);
+            let posting_list = self.index.entry(trigram).or_default();
+            // Insert in sorted order using binary search
+            match posting_list.binary_search(&row) {
+                Ok(_) => {} // Already present, skip
+                Err(pos) => posting_list.insert(pos, row),
+            }
         }
     }
 
-    /// Remove a row from the index - O(text_length)
+    /// Remove a row from the index - O(text_length * log(posting_list_size))
     fn remove(&mut self, row: u32, text: &str) {
         for trigram in Self::generate_trigrams(text) {
-            if let Some(set) = self.index.get_mut(&trigram) {
-                set.remove(&row);
-                // Don't remove empty sets - they might be reused
+            if let Some(posting_list) = self.index.get_mut(&trigram) {
+                if let Ok(pos) = posting_list.binary_search(&row) {
+                    posting_list.remove(pos);
+                }
+                // Don't remove empty vecs - they might be reused
             }
         }
     }
@@ -148,7 +156,8 @@ impl TrigramIndex {
         }
     }
 
-    /// Search for rows matching query - O(num_matches)
+    /// Search for rows matching query - O(total_posting_list_sizes)
+    /// Uses merge-based intersection on sorted posting lists
     fn search(&self, query: &str) -> Vec<u32> {
         let trigrams = Self::generate_trigrams(query);
 
@@ -157,16 +166,20 @@ impl TrigramIndex {
             return vec![];
         }
 
-        // Intersect posting lists
-        let mut result: Option<HashSet<u32>> = None;
+        // Start with the first trigram's posting list
+        let mut result = match self.index.get(&trigrams[0]) {
+            Some(list) => list.clone(),
+            None => return vec![], // First trigram not found - no matches
+        };
 
-        for trigram in &trigrams {
+        // Intersect with remaining trigrams using merge-based algorithm
+        for trigram in &trigrams[1..] {
             match self.index.get(trigram) {
                 Some(posting_list) => {
-                    result = Some(match result {
-                        None => posting_list.clone(),
-                        Some(existing) => existing.intersection(posting_list).copied().collect(),
-                    });
+                    result = Self::intersect_sorted(&result, posting_list);
+                    if result.is_empty() {
+                        return vec![]; // Early exit if intersection becomes empty
+                    }
                 }
                 None => {
                     // Trigram not in index - no matches
@@ -175,7 +188,28 @@ impl TrigramIndex {
             }
         }
 
-        result.map(|s| s.into_iter().collect()).unwrap_or_default()
+        result
+    }
+
+    /// Merge-based intersection of two sorted vectors - O(n + m)
+    fn intersect_sorted(a: &[u32], b: &[u32]) -> Vec<u32> {
+        let mut result = Vec::new();
+        let mut i = 0;
+        let mut j = 0;
+
+        while i < a.len() && j < b.len() {
+            match a[i].cmp(&b[j]) {
+                std::cmp::Ordering::Equal => {
+                    result.push(a[i]);
+                    i += 1;
+                    j += 1;
+                }
+                std::cmp::Ordering::Less => i += 1,
+                std::cmp::Ordering::Greater => j += 1,
+            }
+        }
+
+        result
     }
 
     fn clear(&mut self) {
@@ -705,12 +739,95 @@ impl GridStore {
             return true;
         }
 
+        // Pre-process filter once per row (not per column)
+        // ASCII filters use byte-level fast path (zero allocation)
+        // Non-ASCII filters need char collection (done once here, not per column)
+        let filter_chars_cache: Option<Vec<char>> = if !filter.is_ascii() {
+            Some(filter.chars().collect())
+        } else {
+            None
+        };
+
         // Check indexed columns
         for &col_idx in &self.indexed_columns {
             if let Some(text) = self.columns[col_idx].data.get_string(row_idx) {
-                if text.to_lowercase().contains(filter) {
+                if Self::contains_case_insensitive(text, filter, filter_chars_cache.as_deref()) {
                     return true;
                 }
+            }
+        }
+
+        false
+    }
+
+    /// Case-insensitive substring search with minimal allocation
+    /// filter MUST already be lowercased
+    /// filter_chars_cache: Pre-collected filter chars for non-ASCII filters (avoids re-collecting per column)
+    ///
+    /// Uses ASCII fast path for common case (trading/finance data is typically ASCII-heavy),
+    /// falls back to full Unicode char-by-char comparison only when needed.
+    fn contains_case_insensitive(text: &str, filter: &str, filter_chars_cache: Option<&[char]>) -> bool {
+        if filter.is_empty() {
+            return true;
+        }
+
+        // Fast path: both strings are ASCII - use byte-level comparison (zero allocation)
+        if text.is_ascii() && filter.is_ascii() {
+            // ASCII lowercase comparison via bytes - zero allocation
+            let text_bytes = text.as_bytes();
+            let filter_bytes = filter.as_bytes();
+
+            if text_bytes.len() < filter_bytes.len() {
+                return false;
+            }
+
+            return text_bytes.windows(filter_bytes.len()).any(|window| {
+                window.iter().zip(filter_bytes.iter()).all(|(t, f)| {
+                    t.to_ascii_lowercase() == *f
+                })
+            });
+        }
+
+        // Slow path: non-ASCII text requires proper Unicode handling
+        // Use pre-collected filter_chars from cache if available,
+        // otherwise collect on-demand (happens when filter is ASCII but text is non-ASCII)
+        let filter_chars_vec: Vec<char>;
+        let filter_chars: &[char] = match filter_chars_cache {
+            Some(cached) => cached,
+            None => {
+                // ASCII filter checking non-ASCII text - collect filter chars on demand
+                filter_chars_vec = filter.chars().collect();
+                &filter_chars_vec
+            }
+        };
+
+        // Iterator-based approach to avoid allocating full text_chars vec
+        // Collect lowercased chars only as we scan
+        let mut text_iter = text.chars().flat_map(|c| c.to_lowercase()).peekable();
+
+        // Try to match filter at each position
+        loop {
+            // Clone iterator to try matching from current position
+            let mut candidate = text_iter.clone();
+            let mut matched = true;
+
+            for &filter_char in filter_chars {
+                match candidate.next() {
+                    Some(text_char) if text_char == filter_char => continue,
+                    _ => {
+                        matched = false;
+                        break;
+                    }
+                }
+            }
+
+            if matched {
+                return true;
+            }
+
+            // Advance to next position
+            if text_iter.next().is_none() {
+                break;
             }
         }
 
@@ -844,6 +961,82 @@ pub fn bench_store_update(count: u32, update_count: u32) -> f64 {
     // Benchmark batch update
     let start = Date::now();
     store.batch_update(&updates.into()).unwrap();
+    Date::now() - start
+}
+
+/// Benchmark intersect-heavy filter - measures posting list intersection performance
+/// This stresses the sorted-vec optimization (replacement for HashSet)
+#[wasm_bindgen]
+pub fn bench_intersect_heavy_filter(count: u32) -> f64 {
+    use js_sys::Date;
+
+    let schema = Array::new();
+    let id_col = Object::new();
+    Reflect::set(&id_col, &JsValue::from_str("name"), &JsValue::from_str("id")).unwrap();
+    Reflect::set(&id_col, &JsValue::from_str("type"), &JsValue::from_str("string")).unwrap();
+    Reflect::set(&id_col, &JsValue::from_str("primaryKey"), &JsValue::TRUE).unwrap();
+    schema.push(&id_col);
+
+    let text_col = Object::new();
+    Reflect::set(&text_col, &JsValue::from_str("name"), &JsValue::from_str("text")).unwrap();
+    Reflect::set(&text_col, &JsValue::from_str("type"), &JsValue::from_str("string")).unwrap();
+    Reflect::set(&text_col, &JsValue::from_str("indexed"), &JsValue::TRUE).unwrap();
+    schema.push(&text_col);
+
+    let rows = Array::new();
+    for i in 0..count {
+        let row = Object::new();
+        Reflect::set(&row, &JsValue::from_str("id"), &JsValue::from_str(&format!("row_{}", i))).unwrap();
+        // Create text with many overlapping trigrams to stress intersection
+        Reflect::set(&row, &JsValue::from_str("text"), &JsValue::from_str(&format!("performance optimization benchmark test data row_{}", i % 100))).unwrap();
+        rows.push(&row);
+    }
+
+    let mut store = GridStore::new(&schema.into()).unwrap();
+    store.load_rows(&rows.into()).unwrap();
+
+    // Multi-trigram query that requires intersecting many posting lists
+    let start = Date::now();
+    store.set_filter("performance optimization");
+    let _count = store.view_count();
+    Date::now() - start
+}
+
+/// Benchmark row matching with lowercase allocation - measures case-insensitive contains performance
+/// This stresses the lowercase allocation optimization
+#[wasm_bindgen]
+pub fn bench_row_matching(count: u32) -> f64 {
+    use js_sys::Date;
+
+    let schema = Array::new();
+    let id_col = Object::new();
+    Reflect::set(&id_col, &JsValue::from_str("name"), &JsValue::from_str("id")).unwrap();
+    Reflect::set(&id_col, &JsValue::from_str("type"), &JsValue::from_str("string")).unwrap();
+    Reflect::set(&id_col, &JsValue::from_str("primaryKey"), &JsValue::TRUE).unwrap();
+    schema.push(&id_col);
+
+    let desc_col = Object::new();
+    Reflect::set(&desc_col, &JsValue::from_str("name"), &JsValue::from_str("description")).unwrap();
+    Reflect::set(&desc_col, &JsValue::from_str("type"), &JsValue::from_str("string")).unwrap();
+    Reflect::set(&desc_col, &JsValue::from_str("indexed"), &JsValue::TRUE).unwrap();
+    schema.push(&desc_col);
+
+    let rows = Array::new();
+    for i in 0..count {
+        let row = Object::new();
+        Reflect::set(&row, &JsValue::from_str("id"), &JsValue::from_str(&format!("row_{}", i))).unwrap();
+        // Long mixed-case text to stress lowercase comparison
+        Reflect::set(&row, &JsValue::from_str("description"), &JsValue::from_str(&format!("The Quick BROWN Fox Jumps Over The LAZY Dog - Item Number {}", i))).unwrap();
+        rows.push(&row);
+    }
+
+    let mut store = GridStore::new(&schema.into()).unwrap();
+    store.load_rows(&rows.into()).unwrap();
+
+    // Query that will match many rows and trigger row_matches_filter many times
+    let start = Date::now();
+    store.set_filter("quick");
+    let _count = store.view_count();
     Date::now() - start
 }
 
@@ -1016,5 +1209,107 @@ mod tests {
         // Should now match "world", not "hello"
         assert_eq!(index.search("hello").len(), 0);
         assert_eq!(index.search("world").len(), 1);
+    }
+
+    #[test]
+    fn test_posting_lists_are_sorted() {
+        let mut index = TrigramIndex::new();
+
+        // Add rows out of order
+        index.add(5, "hello");
+        index.add(1, "hello");
+        index.add(3, "hello");
+        index.add(2, "hello");
+
+        // Get the posting list for "hel" trigram
+        let posting_list = index.index.get("hel").unwrap();
+
+        // Should be sorted
+        assert_eq!(posting_list, &vec![1, 2, 3, 5]);
+    }
+
+    #[test]
+    fn test_intersect_sorted() {
+        let a = vec![1, 3, 5, 7, 9];
+        let b = vec![2, 3, 5, 8, 10];
+
+        let result = TrigramIndex::intersect_sorted(&a, &b);
+
+        assert_eq!(result, vec![3, 5]);
+    }
+
+    #[test]
+    fn test_intersect_sorted_empty() {
+        let a = vec![1, 2, 3];
+        let b = vec![4, 5, 6];
+
+        let result = TrigramIndex::intersect_sorted(&a, &b);
+
+        assert_eq!(result, vec![]);
+    }
+
+    #[test]
+    fn test_intersect_sorted_with_empty() {
+        let a = vec![1, 2, 3];
+        let b: Vec<u32> = vec![];
+
+        let result = TrigramIndex::intersect_sorted(&a, &b);
+
+        assert_eq!(result, vec![]);
+    }
+
+    #[test]
+    fn test_multi_trigram_intersection() {
+        let mut index = TrigramIndex::new();
+
+        // Add rows with overlapping text
+        index.add(0, "hello world");
+        index.add(1, "hello there");
+        index.add(2, "say hello world today");  // Contains "hello world" substring
+        index.add(3, "goodbye world");
+
+        // Multi-trigram query "hello world" should match rows 0 and 2
+        // Row 0: exact match
+        // Row 2: contains "hello world" as substring
+        // Row 1: has "hello" but not "world"
+        // Row 3: has "world" but not "hello"
+        let results = index.search("hello world");
+
+        // Results should contain rows that have ALL trigrams from "hello world"
+        assert!(results.contains(&0), "Row 0 should match (exact)");
+        assert!(results.contains(&2), "Row 2 should match (contains substring)");
+        assert_eq!(results.len(), 2, "Should match exactly 2 rows");
+    }
+
+    #[test]
+    fn test_contains_case_insensitive() {
+        // Basic ASCII (uses fast path, no cache needed)
+        assert!(GridStore::contains_case_insensitive("Hello World", "world", None));
+        assert!(GridStore::contains_case_insensitive("UPPERCASE", "upper", None));
+        assert!(GridStore::contains_case_insensitive("MixedCase", "mixed", None));
+
+        // Not found
+        assert!(!GridStore::contains_case_insensitive("hello", "world", None));
+
+        // Empty filter
+        assert!(GridStore::contains_case_insensitive("anything", "", None));
+
+        // CJK (non-ASCII, needs char cache)
+        let cjk_filter_chars: Vec<char> = "上海".chars().collect();
+        assert!(GridStore::contains_case_insensitive("上海市", "上海", Some(&cjk_filter_chars)));
+
+        // Emoji (non-ASCII, needs char cache)
+        let emoji_filter_chars: Vec<char> = "👋".chars().collect();
+        assert!(GridStore::contains_case_insensitive("Hello 👋 World", "👋", Some(&emoji_filter_chars)));
+
+        // ASCII filter on non-ASCII text (the panic bug case - should NOT panic)
+        // This is the scenario: filter="beijing" (ASCII), text="北京" (non-ASCII)
+        // Cache is None because filter is ASCII, but slow path is entered because text is non-ASCII
+        // Should lazily collect filter chars instead of panicking
+        assert!(!GridStore::contains_case_insensitive("北京", "beijing", None));
+        assert!(!GridStore::contains_case_insensitive("上海", "shanghai", None));
+
+        // Positive case: ASCII filter that DOES match transliterated content
+        assert!(GridStore::contains_case_insensitive("Beijing 北京", "beijing", None));
     }
 }
