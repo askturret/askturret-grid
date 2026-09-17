@@ -16,6 +16,7 @@ export interface UseSortedDataParams<T> {
   wasmCoreReady: boolean;
   wasmIndices: number[] | null;
   shouldVirtualize: boolean;
+  passthrough?: boolean;
 }
 
 export interface UseSortedDataReturn<T> {
@@ -33,6 +34,7 @@ export interface UseSortedDataReturn<T> {
  * for virtualizer sizing, and getRowAtIndex for efficient virtualized access.
  *
  * Strategy:
+ * - Passthrough mode (controlled-by-store) → return data as-is, no filter/sort
  * - WASM indices (when available) → use cached view from GridCore
  * - Legacy WASM filterAndSort (medium datasets, filter/sort active) → old path
  * - JavaScript fallback → filter then sort in-memory
@@ -46,10 +48,17 @@ export function useSortedData<T>({
   wasmCoreReady,
   wasmIndices,
   shouldVirtualize,
+  passthrough = false,
 }: UseSortedDataParams<T>): UseSortedDataReturn<T> {
   // sortedData for non-virtualized mode (still needed for table rendering)
   // For virtualized mode, we use getRowAtIndex directly
   const sortedData = useMemo(() => {
+    // Passthrough mode: controlled-by-store — data is already filtered/sorted by the engine
+    // Short-circuit to avoid redundant filter+sort pass that could diverge when filterFields
+    // is narrower than the store's indexed columns (#32 divergence bug)
+    if (passthrough) {
+      return data;
+    }
     // For WASM mode with virtualization, return empty - we'll use getRowAtIndex
     if (wasmCoreReady && wasmIndices && shouldVirtualize) {
       // Return a sparse proxy array that uses cached indices
@@ -111,22 +120,30 @@ export function useSortedData<T>({
     }
 
     return result;
-  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize]);
+  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize, passthrough]);
 
   // Get row at index - uses WASM indices or direct data access
   const getRowAtIndex = useCallback(
     (index: number): T | undefined => {
+      // Passthrough mode: data is already in final order, no index mapping needed
+      if (passthrough) {
+        return data[index];
+      }
       if (wasmCoreReady && wasmIndices) {
         const dataIndex = wasmIndices[index];
         return dataIndex !== undefined ? data[dataIndex] : undefined;
       }
       return data[index];
     },
-    [data, wasmCoreReady, wasmIndices]
+    [data, wasmCoreReady, wasmIndices, passthrough]
   );
 
   // Get total visible count
   const visibleCount = useMemo(() => {
+    // Passthrough mode: data is already filtered, count is just data.length
+    if (passthrough) {
+      return data.length;
+    }
     if (wasmCoreReady && wasmIndices) {
       return wasmIndices.length;
     }
@@ -147,7 +164,7 @@ export function useSortedData<T>({
         return String(value).toLowerCase().includes(lowerFilter);
       })
     ).length;
-  }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices]);
+  }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices, passthrough]);
 
   return {
     sortedData,

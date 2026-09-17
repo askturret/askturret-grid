@@ -56,6 +56,10 @@ export interface GridStoreResult<T> {
   rowCount: number;
   /** Filtered row count */
   viewCount: number;
+  /** Current filter text */
+  filter: string;
+  /** Current sort state */
+  sort: { field: string | null; direction: SortDirection };
 
   // Data operations
   /** Load/replace all data */
@@ -226,6 +230,11 @@ export function useGridStore<T extends Record<string, unknown>>(
   const [data, setData] = useState<T[]>([]);
   const [rowCount, setRowCount] = useState(0);
   const [viewCount, setViewCount] = useState(0);
+  const [filter, setFilterState] = useState('');
+  const [sort, setSortState] = useState<{ field: string | null; direction: SortDirection }>({
+    field: null,
+    direction: null,
+  });
 
   // Store references
   const workerStoreRef = useRef<WorkerGridStore<T> | null>(null);
@@ -390,6 +399,7 @@ export function useGridStore<T extends Record<string, unknown>>(
   // Filter
   const setFilter = useCallback(
     (text: string) => {
+      setFilterState(text);
       switch (storeType) {
         case 'worker':
           workerStoreRef.current?.setFilter(text);
@@ -414,6 +424,7 @@ export function useGridStore<T extends Record<string, unknown>>(
   );
 
   const clearFilter = useCallback(() => {
+    setFilterState('');
     switch (storeType) {
       case 'worker':
         workerStoreRef.current?.clearFilter();
@@ -438,6 +449,7 @@ export function useGridStore<T extends Record<string, unknown>>(
   // Sort
   const setSort = useCallback(
     (column: string, direction: SortDirection) => {
+      setSortState({ field: column, direction });
       switch (storeType) {
         case 'worker':
           workerStoreRef.current?.setSort(column, direction);
@@ -460,6 +472,7 @@ export function useGridStore<T extends Record<string, unknown>>(
   );
 
   const clearSort = useCallback(() => {
+    setSortState({ field: null, direction: null });
     switch (storeType) {
       case 'worker':
         workerStoreRef.current?.clearSort();
@@ -507,6 +520,8 @@ export function useGridStore<T extends Record<string, unknown>>(
     storeType,
     rowCount,
     viewCount,
+    filter,
+    sort,
     loadRows,
     updateRows,
     setFilter,

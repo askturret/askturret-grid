@@ -127,6 +127,27 @@ export interface DataGridProps<T> {
   /** Callback when columns are reordered */
   onColumnReorder?: (newOrder: string[]) => void;
 
+  // Controlled Filter/Sort (for external store integration)
+  /**
+   * Controlled filter value. When provided, DataGrid does not manage filter
+   * state internally and skips its own filter pass (trusts data as pre-filtered).
+   */
+  filter?: string;
+  /**
+   * Callback when filter input changes. Required if `filter` is provided and
+   * `showFilter` is true.
+   */
+  onFilterChange?: (filter: string) => void;
+  /**
+   * Controlled sort state. When provided, DataGrid does not manage sort state
+   * internally and skips its own sort pass (trusts data as pre-sorted).
+   */
+  sort?: { field: string | null; direction: 'asc' | 'desc' | null };
+  /**
+   * Callback when a sortable header is clicked. Required if `sort` is provided.
+   */
+  onSortChange?: (sort: { field: string | null; direction: 'asc' | 'desc' | null }) => void;
+
   // Row Exit Lifecycle
   /**
    * Dynamic row-level CSS class. Called for every rendered row, including
@@ -181,6 +202,11 @@ export function DataGrid<T extends object>({
   reorderable = false,
   columnOrder: controlledOrder,
   onColumnReorder,
+  // Controlled filter/sort
+  filter: controlledFilter,
+  onFilterChange,
+  sort: controlledSort,
+  onSortChange,
   // Row exit lifecycle
   rowClass,
   rowExitDuration = 0,
@@ -202,12 +228,70 @@ export function DataGrid<T extends object>({
     return columns as ColumnDef<T>[];
   }, [columns]);
 
-  // Sort state
-  const { sort, handleSort: handleSortBase } = useSortState();
+  // Filter state - controlled or uncontrolled
+  const [internalFilter, setInternalFilter] = useState('');
+  const filter = controlledFilter ?? internalFilter;
+  const handleFilterChange = onFilterChange ?? setInternalFilter;
 
-  const [filter, setFilter] = useState('');
+  // Sort state - controlled or uncontrolled
+  const { sort: internalSort, handleSort: handleSortBase } = useSortState();
+  const sort = controlledSort ?? internalSort;
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+
+  // Dev warnings for controlled/uncontrolled mode (R2, R3, R5)
+  useEffect(() => {
+    // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
+
+    // R2: Warn when controlled prop is set without callback
+    if (controlledFilter !== undefined && !onFilterChange && showFilter) {
+      console.warn(
+        '[DataGrid] `filter` is controlled but `onFilterChange` is not provided. ' +
+          'The filter input will be read-only. Either provide `onFilterChange` or remove `filter`.'
+      );
+    }
+
+    if (controlledSort !== undefined && !onSortChange) {
+      console.warn(
+        '[DataGrid] `sort` is controlled but `onSortChange` is not provided. ' +
+          'Sort headers will ignore clicks. Either provide `onSortChange` or remove `sort`.'
+      );
+    }
+  }, [controlledFilter, onFilterChange, controlledSort, onSortChange, showFilter]);
+
+  // R3: Warn on transitions between controlled and uncontrolled
+  const prevFilterControlled = useRef(controlledFilter !== undefined);
+  const prevSortControlled = useRef(controlledSort !== undefined);
+
+  useEffect(() => {
+    // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
+
+    const nowFilterControlled = controlledFilter !== undefined;
+    const nowSortControlled = controlledSort !== undefined;
+
+    if (prevFilterControlled.current !== nowFilterControlled) {
+      console.warn(
+        '[DataGrid] `filter` prop changed from ' +
+          (prevFilterControlled.current ? 'controlled to uncontrolled' : 'uncontrolled to controlled') +
+          '. This is an anti-pattern and may cause unexpected behavior. ' +
+          'Decide whether `filter` should be controlled on mount and keep it consistent.'
+      );
+    }
+
+    if (prevSortControlled.current !== nowSortControlled) {
+      console.warn(
+        '[DataGrid] `sort` prop changed from ' +
+          (prevSortControlled.current ? 'controlled to uncontrolled' : 'uncontrolled to controlled') +
+          '. This is an anti-pattern and may cause unexpected behavior. ' +
+          'Decide whether `sort` should be controlled on mount and keep it consistent.'
+      );
+    }
+
+    prevFilterControlled.current = nowFilterControlled;
+    prevSortControlled.current = nowSortControlled;
+  }, [controlledFilter, controlledSort]);
 
   // Adaptive flash monitoring (when enabled)
   const { disableFlash: adaptiveDisable } = useAdaptiveFlash(adaptiveFlash);
@@ -251,11 +335,13 @@ export function DataGrid<T extends object>({
   const enableFlash = !disableFlash && !adaptiveDisable;
 
   // Determine if we should use WASM GridCore
+  // Disable when filter is controlled (external store already filtered)
   const shouldUseWasmCore = useMemo(() => {
+    if (onFilterChange) return false; // Controlled - skip internal filter
     if (useWasmCore === true) return true;
     if (useWasmCore === false) return false;
     return data.length > WASM_CORE_THRESHOLD;
-  }, [useWasmCore, data.length]);
+  }, [useWasmCore, data.length, onFilterChange]);
 
   // WASM view (GridCore integration)
   const { wasmCoreReady, wasmIndices } = useWasmView({
@@ -277,6 +363,7 @@ export function DataGrid<T extends object>({
   );
 
   // Sorted/filtered data (pure derivation)
+  // Passthrough when controlled-by-store: data is already filtered/sorted by the engine
   const { sortedData, visibleCount, getRowAtIndex } = useSortedData({
     data,
     filter,
@@ -286,6 +373,7 @@ export function DataGrid<T extends object>({
     wasmCoreReady,
     wasmIndices,
     shouldVirtualize,
+    passthrough: !!onFilterChange || !!onSortChange,
   });
 
   // Row-exit lifecycle (leaving rows + cleanup)
@@ -305,7 +393,21 @@ export function DataGrid<T extends object>({
 
   // R2: Parent orchestrates clearing leaving rows on sort change
   const handleSort = (field: string) => {
-    handleSortBase(field);
+    if (onSortChange) {
+      // Controlled mode - dispatch to callback
+      const currentField = sort?.field;
+      const currentDir = sort?.direction;
+      let newDir: 'asc' | 'desc' | null = 'asc';
+
+      if (currentField === field) {
+        newDir = currentDir === 'asc' ? 'desc' : currentDir === 'desc' ? null : 'asc';
+      }
+
+      onSortChange({ field: newDir ? field : null, direction: newDir });
+    } else {
+      // Uncontrolled mode - use internal state
+      handleSortBase(field);
+    }
     clearLeaving();
   };
 
@@ -558,7 +660,7 @@ export function DataGrid<T extends object>({
           <input
             type="text"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(e.target.value)}
             placeholder={filterPlaceholder}
           />
         </div>

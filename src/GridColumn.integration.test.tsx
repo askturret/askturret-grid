@@ -244,7 +244,10 @@ describe('GridColumn integration with DataGrid + useGridStore', () => {
 
     it('wires store.data into DataGrid and filters narrow the displayed rows', () => {
       // This test actually binds store.data to DataGrid's data prop and verifies
-      // that calling setFilter on the store narrows what the grid displays
+      // that calling setFilter on the store narrows what the grid displays.
+      // CRITICAL: filterFields is narrower than store's indexed columns (missing 'symbol')
+      // to test the #32 divergence bug - without useSortedData passthrough, DataGrid's
+      // redundant filter would strip rows the store kept.
 
       const columns: GridColumn<TestRow>[] = [
         {
@@ -281,7 +284,14 @@ describe('GridColumn integration with DataGrid + useGridStore', () => {
         return (
           <div>
             <button onClick={() => store.setFilter('AAPL')}>Filter to AAPL</button>
-            <DataGrid data={store.data} columns={columns} rowKey={deriveRowKey(columns)} />
+            <DataGrid
+              data={store.data}
+              columns={columns}
+              rowKey={deriveRowKey(columns)}
+              filter={store.filter}
+              onFilterChange={store.setFilter}
+              filterFields={['id', 'price']}
+            />
           </div>
         );
       }
