@@ -266,40 +266,45 @@ describe('GridCore', () => {
 
     it('handles mixed multi-byte and ASCII characters', () => {
       core.setData([
-        ['café', 'naïve', 'résumé'], // Latin with diacritics
-        ['München', 'Zürich', 'Berlin'],
-        ['café', 'naïve', 'résumé'], // Duplicate row for testing
+        ['café', 'naïve', 'café'], // Column 0: café appears in rows 0 and 2
+        ['München', 'Zürich', 'Berlin'], // Column 1
+        ['extra', 'résumé', 'test'], // Column 2
       ]);
 
-      // Filter by accented character
+      // Filter by accented character - should match rows 0 and 2 (both have 'café' in col 0)
       core.setFilter('café');
-      expect(core.getView()).toEqual([0, 2]); // Both rows with 'café'
+      expect(core.getView()).toEqual([0, 2]);
 
+      // Filter by 'ü' - should match row 0 (München) and row 1 (Zürich)
       core.setFilter('ü');
-      expect(core.getView()).toEqual([1]); // Matches 'München' and 'Zürich'
+      expect(core.getView()).toEqual([0, 1]);
 
+      // Filter by 'résumé' - should match row 1 (has 'résumé' in column 2)
       core.setFilter('résumé');
-      expect(core.getView()).toEqual([2]); // Row 2 has 'résumé' in column 2
+      expect(core.getView()).toEqual([1]);
     });
 
     it('case-insensitive filtering works for non-ASCII', () => {
       core.setData([
-        ['Café', 'CAFÉ', 'café'],
-        ['MÜNCHEN', 'München', 'münchen'],
+        ['Café', 'MÜNCHEN'], // Column 0: Café in row 0, MÜNCHEN in row 1
+        ['CAFÉ', 'München'], // Column 1: CAFÉ in row 0, München in row 1
+        ['café', 'münchen'], // Column 2: café in row 0, münchen in row 1
       ]);
 
-      // Lowercase query should match all cases
+      // Lowercase query should match row 0 (has Café/CAFÉ/café across columns)
       core.setFilter('café');
-      expect(core.getView()).toEqual([0]); // All three variants in row 0
+      expect(core.getView()).toEqual([0]);
 
+      // Lowercase query should match row 1 (has MÜNCHEN/München/münchen across columns)
       core.setFilter('münchen');
-      expect(core.getView()).toEqual([1]); // All three variants in row 1
+      expect(core.getView()).toEqual([1]);
     });
 
     it('handles empty filter with non-ASCII data', () => {
       core.setData([
-        ['张三', 'مرحبا', '😀'],
-        ['李四', 'שלום', '🌍'],
+        ['张三', '李四'], // Column 0: Chinese names in rows 0 and 1
+        ['مرحبا', 'שלום'], // Column 1: Arabic/Hebrew in rows 0 and 1
+        ['😀', '🌍'], // Column 2: Emoji in rows 0 and 1
       ]);
 
       core.setFilter('');
