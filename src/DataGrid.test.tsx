@@ -1092,19 +1092,57 @@ describe('DataGrid', () => {
     });
 
     it('should have role="row" on data rows in virtualized mode', () => {
+      // Mock dimensions for virtualizer
+      const origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
       const { container } = render(
         <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
       );
       const rows = container.querySelectorAll('.askturret-grid-virtual-row[role="row"]');
       expect(rows.length).toBeGreaterThan(0);
+
+      // Restore
+      Element.prototype.getBoundingClientRect = origGetBoundingClientRect;
     });
 
     it('should have role="gridcell" on cells in virtualized mode', () => {
+      // Mock dimensions for virtualizer
+      const origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = vi.fn(() => ({
+        width: 800,
+        height: 500,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 500,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 });
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, value: 800 });
+
       const { container } = render(
         <DataGrid data={testData} columns={columns} rowKey="id" virtualize={true} />
       );
       const cells = container.querySelectorAll('[role="gridcell"]');
       expect(cells.length).toBeGreaterThan(0);
+
+      // Restore
+      Element.prototype.getBoundingClientRect = origGetBoundingClientRect;
     });
 
     it('should support keyboard navigation with arrow keys', () => {
@@ -1205,7 +1243,7 @@ describe('DataGrid', () => {
       expect(filterInput).toBe(document.activeElement);
     });
 
-    it('should not intercept Enter key from sortable header button', () => {
+    it('should not intercept Enter key from sortable header', () => {
       const handleRowClick = vi.fn();
       const sortableColumns = columns.map((col) => ({ ...col, sortable: true }));
       const { container } = render(
@@ -1217,10 +1255,11 @@ describe('DataGrid', () => {
       grid!.focus();
       fireEvent.keyDown(grid!, { key: 'ArrowDown' });
 
-      // Now press Enter on a header button - should NOT trigger row click
-      const headerButton = container.querySelector('th button') as HTMLButtonElement;
-      headerButton.focus();
-      fireEvent.keyDown(headerButton, { key: 'Enter' });
+      // Now press Enter on a sortable header - should NOT trigger row click
+      // In table mode, sortable headers are <th> elements with onClick
+      const header = container.querySelector('th.sortable') as HTMLTableCellElement;
+      header.focus();
+      fireEvent.keyDown(header, { key: 'Enter' });
 
       expect(handleRowClick).not.toHaveBeenCalled();
     });
