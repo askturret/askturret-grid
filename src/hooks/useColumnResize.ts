@@ -2,16 +2,16 @@ import { useState, useEffect, useCallback, type RefObject } from 'react';
 
 export interface ColumnDef<T> {
   field: keyof T | string;
-  width?: string;
-  minWidth?: number;
-  maxWidth?: number;
-  resizable?: boolean;
+  width?: string | undefined;
+  minWidth?: number | undefined;
+  maxWidth?: number | undefined;
+  resizable?: boolean | undefined;
 }
 
 export interface UseColumnResizeParams<T> {
   columns: ColumnDef<T>[];
-  controlledWidths?: Record<string, number>;
-  onColumnResize?: (field: string, width: number) => void;
+  controlledWidths?: Record<string, number> | undefined;
+  onColumnResize?: ((field: string, width: number) => void) | undefined;
   minColumnWidth: number;
   maxColumnWidth: number;
   resizable: boolean;

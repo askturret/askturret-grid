@@ -31,8 +31,8 @@
 export interface ColumnSchema {
   name: string;
   type: 'string' | 'number' | 'integer';
-  primaryKey?: boolean;
-  indexed?: boolean; // Include in text search
+  primaryKey?: boolean | undefined;
+  indexed?: boolean | undefined; // Include in text search
 }
 
 export interface RowUpdate {

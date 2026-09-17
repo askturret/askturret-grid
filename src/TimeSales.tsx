@@ -92,6 +92,7 @@ export function TimeSales({
     const directions = new Map<string | number, 'up' | 'down' | 'none'>();
     for (let i = 0; i < visibleTrades.length; i++) {
       const trade = visibleTrades[i];
+      if (!trade) continue;
       const nextTrade = visibleTrades[i + 1]; // Previous in time (array is newest-first)
       if (nextTrade) {
         if (trade.price > nextTrade.price) {

@@ -88,15 +88,18 @@ export function OrderBook({
   // Calculate spread
   const spread = useMemo(() => {
     if (data.spread !== undefined) return data.spread;
-    if (visibleAsks.length > 0 && visibleBids.length > 0) {
-      return visibleAsks[0].price - visibleBids[0].price;
+    const firstAsk = visibleAsks[0];
+    const firstBid = visibleBids[0];
+    if (firstAsk && firstBid) {
+      return firstAsk.price - firstBid.price;
     }
     return 0;
   }, [data.spread, visibleAsks, visibleBids]);
 
   const spreadPercent = useMemo(() => {
-    if (visibleBids.length > 0 && spread > 0) {
-      return (spread / visibleBids[0].price) * 100;
+    const firstBid = visibleBids[0];
+    if (firstBid && spread > 0) {
+      return (spread / firstBid.price) * 100;
     }
     return 0;
   }, [spread, visibleBids]);

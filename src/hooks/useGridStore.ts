@@ -99,7 +99,11 @@ class JsGridStore<T extends Record<string, unknown>> {
   private viewCache: number[] | null = null;
 
   constructor(schema: ColumnSchema[]) {
-    this.idField = schema.find((c) => c.primaryKey)?.name || schema[0].name;
+    const firstSchema = schema[0];
+    if (!firstSchema) {
+      throw new Error('Schema must have at least one column');
+    }
+    this.idField = schema.find((c) => c.primaryKey)?.name || firstSchema.name;
     this.indexedFields = schema.filter((c) => c.indexed).map((c) => c.name);
   }
 
@@ -117,7 +121,10 @@ class JsGridStore<T extends Record<string, unknown>> {
     for (const update of updates) {
       const idx = this.idMap.get(update.id);
       if (idx !== undefined) {
-        Object.assign(this.data[idx], update);
+        const row = this.data[idx];
+        if (row) {
+          Object.assign(row, update);
+        }
       }
     }
     this.viewCache = null;
@@ -157,7 +164,7 @@ class JsGridStore<T extends Record<string, unknown>> {
 
   getViewData(): T[] {
     this.ensureView();
-    return this.viewCache!.map((i) => this.data[i]);
+    return this.viewCache!.map((i) => this.data[i]).filter((row): row is T => row !== undefined);
   }
 
   private ensureView(): void {
@@ -169,6 +176,7 @@ class JsGridStore<T extends Record<string, unknown>> {
     if (this.filterText) {
       indices = indices.filter((i) => {
         const row = this.data[i];
+        if (!row) return false;
         return this.indexedFields.some((col) => {
           const val = row[col];
           return val && String(val).toLowerCase().includes(this.filterText);
@@ -181,8 +189,11 @@ class JsGridStore<T extends Record<string, unknown>> {
       const col = this.sortColumn;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       indices.sort((a, b) => {
-        const va = this.data[a][col];
-        const vb = this.data[b][col];
+        const rowA = this.data[a];
+        const rowB = this.data[b];
+        if (!rowA || !rowB) return 0;
+        const va = rowA[col];
+        const vb = rowB[col];
         if (va == null && vb == null) return 0;
         if (va == null) return 1;
         if (vb == null) return -1;
@@ -217,6 +228,7 @@ export function useGridStore<T extends Record<string, unknown>>(
     if (schema.length === 0) return [];
 
     const firstCol = schema[0];
+    if (!firstCol) return [];
     const isGridColumn = 'header' in firstCol;
 
     if (isGridColumn) {
