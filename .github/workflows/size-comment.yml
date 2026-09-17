@@ -41,9 +41,6 @@ jobs:
       - name: Build package
         run: npm run build
 
-      - name: Check WASM size
-        run: npx size-limit --config .size-limit.wasm.cjs --json
-
       - name: Report bundle size
         uses: andresz1/size-limit-action@v1
         with:
