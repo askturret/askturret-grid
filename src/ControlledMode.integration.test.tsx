@@ -5,6 +5,7 @@
  * filter and engine filter state in controlled mode.
  */
 
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 import { DataGrid } from './DataGrid';
@@ -221,5 +222,70 @@ describe('Controlled-mode DataGrid integration', () => {
     expect(storeFilterDisplay.textContent).toBe('MSFT');
 
     // This confirms: typing into grid filter → store.setFilter called → store.filter updated
+  });
+
+  it('handles toggling between controlled and uncontrolled mode without crashing (Rules-of-Hooks)', () => {
+    // This test verifies the Rules-of-Hooks fix for useSortedData:
+    // Previously, useSortedData had an early return when passthrough=true, which
+    // skipped 3 hook calls (useMemo, useCallback, useMemo). When passthrough
+    // toggled from false→true or true→false on an already-mounted DataGrid,
+    // React would throw "Rendered fewer hooks than expected" and crash.
+    //
+    // The fix moves passthrough logic INSIDE each hook, so all hooks are always
+    // called on every render. This test verifies no crash occurs when toggling.
+
+    function ToggleableGrid() {
+      const [useStore, setUseStore] = React.useState(false);
+      const store = useGridStore({
+        storeType: 'js',
+        schema: columns,
+        initialData: testData,
+      });
+
+      if (!store.isReady) {
+        return <div>Loading...</div>;
+      }
+
+      return (
+        <div>
+          <button onClick={() => setUseStore(!useStore)}>
+            Toggle {useStore ? 'Uncontrolled' : 'Controlled'}
+          </button>
+          <DataGrid
+            data={useStore ? store.data : testData}
+            columns={columns}
+            rowKey={deriveRowKey(columns)}
+            showFilter
+            // Conditionally wire controlled props - this changes passthrough value
+            {...(useStore ? controlledBy(store) : {})}
+          />
+        </div>
+      );
+    }
+
+    render(<ToggleableGrid />);
+
+    // Initially uncontrolled - should render all rows
+    expect(screen.getByText('AAPL')).toBeInTheDocument();
+    expect(screen.getByText('GOOGL')).toBeInTheDocument();
+    expect(screen.getByText('MSFT')).toBeInTheDocument();
+
+    // Toggle to controlled mode - should NOT crash (the bug we're testing)
+    const toggleButton = screen.getByText(/Toggle/);
+    act(() => {
+      toggleButton.click();
+    });
+
+    // Still renders all rows (no crash = test passes)
+    expect(screen.getByText('AAPL')).toBeInTheDocument();
+    expect(screen.getByText('GOOGL')).toBeInTheDocument();
+
+    // Toggle back to uncontrolled - should still not crash
+    act(() => {
+      toggleButton.click();
+    });
+
+    // Still renders (no crash = Rules-of-Hooks fix verified)
+    expect(screen.getByText('AAPL')).toBeInTheDocument();
   });
 });
