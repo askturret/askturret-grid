@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { filterAndSort, isWasmAvailable, type SortDirection as WasmSortDirection } from './wasm';
 import { GridCore } from './wasm/GridCore';
 import { useAdaptiveFlash } from './hooks/useAdaptiveFlash';
+import { type GridColumn, toColumnDef } from './columns';
 
 /**
  * Column definition for the DataGrid
@@ -45,8 +46,8 @@ export interface ColumnDef<T> {
 export interface DataGridProps<T> {
   /** Data array to display */
   data: T[];
-  /** Column definitions */
-  columns: ColumnDef<T>[];
+  /** Column definitions - accepts legacy ColumnDef or unified GridColumn */
+  columns: ColumnDef<T>[] | GridColumn<T>[];
   /** Unique row identifier - field name or function */
   rowKey: keyof T | ((row: T) => string);
   /** Message shown when data is empty */
@@ -193,6 +194,23 @@ export function DataGrid<T extends object>({
   rowClass,
   rowExitDuration = 0,
 }: DataGridProps<T>) {
+  // R1: Runtime shape discrimination - normalize GridColumn[] to ColumnDef[]
+  // GridColumn has 'name' (required) and no 'field'; ColumnDef has 'field' (required) and no 'name'
+  const normalizedColumns: ColumnDef<T>[] = useMemo(() => {
+    if (columns.length === 0) return [];
+
+    const firstCol = columns[0];
+    const isGridColumn = 'name' in firstCol && !('field' in firstCol);
+
+    if (isGridColumn) {
+      // Convert GridColumn[] to ColumnDef[]
+      return (columns as GridColumn<T>[]).map(toColumnDef);
+    }
+
+    // Already ColumnDef[], use as-is
+    return columns as ColumnDef<T>[];
+  }, [columns]);
+
   const [sort, setSort] = useState<SortState>({ field: null, direction: null });
   const [filter, setFilter] = useState('');
   const [, forceUpdate] = useState(0);
@@ -233,11 +251,11 @@ export function DataGrid<T extends object>({
 
   // Order columns based on columnOrder prop
   const orderedColumns = useMemo(() => {
-    if (columnOrder.length === 0) return columns;
+    if (columnOrder.length === 0) return normalizedColumns;
     return columnOrder
-      .map((field) => columns.find((c) => String(c.field) === field))
+      .map((field) => normalizedColumns.find((c) => String(c.field) === field))
       .filter((c): c is ColumnDef<T> => c !== undefined);
-  }, [columns, columnOrder]);
+  }, [normalizedColumns, columnOrder]);
 
   // Get column width (controlled > column.width > default)
   const getColumnWidth = useCallback(
@@ -259,7 +277,7 @@ export function DataGrid<T extends object>({
     (field: string, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const col = columns.find((c) => String(c.field) === field);
+      const col = normalizedColumns.find((c) => String(c.field) === field);
       const currentWidth = getColumnWidth(col!);
       setResizing({ field, startX: e.clientX, startWidth: currentWidth, atLimit: null });
       document.body.classList.add('askturret-grid-resizing');
@@ -270,7 +288,7 @@ export function DataGrid<T extends object>({
   const handleResizeMove = useCallback(
     (e: MouseEvent) => {
       if (!resizing) return;
-      const col = columns.find((c) => String(c.field) === resizing.field);
+      const col = normalizedColumns.find((c) => String(c.field) === resizing.field);
       const colMinWidth = col?.minWidth ?? minColumnWidth;
       const colMaxWidth = col?.maxWidth ?? maxColumnWidth;
       const delta = e.clientX - resizing.startX;
@@ -299,7 +317,7 @@ export function DataGrid<T extends object>({
         setInternalWidths((prev) => ({ ...prev, [resizing.field]: newWidth }));
       }
     },
-    [resizing, columns, minColumnWidth, maxColumnWidth, onColumnResize]
+    [resizing, normalizedColumns, minColumnWidth, maxColumnWidth, onColumnResize]
   );
 
   const handleResizeEnd = useCallback(() => {
@@ -357,7 +375,7 @@ export function DataGrid<T extends object>({
       e.preventDefault();
       if (!dragging || dragging.targetIndex === null) return;
 
-      const currentOrder = columnOrder.length > 0 ? columnOrder : columns.map((c) => String(c.field));
+      const currentOrder = columnOrder.length > 0 ? columnOrder : normalizedColumns.map((c) => String(c.field));
 
       const fromIndex = currentOrder.indexOf(dragging.field);
       if (fromIndex === -1) return;
@@ -373,7 +391,7 @@ export function DataGrid<T extends object>({
       }
       setDragging(null);
     },
-    [dragging, columnOrder, columns, onColumnReorder]
+    [dragging, columnOrder, normalizedColumns, onColumnReorder]
   );
 
   const handleDragEnd = useCallback(() => {
@@ -455,11 +473,11 @@ export function DataGrid<T extends object>({
 
     // Convert row-major data to column-major for GridCore
     // Always send ALL columns so sorting works on any column
-    const allFields = columns.map((c) => String(c.field));
+    const allFields = normalizedColumns.map((c) => String(c.field));
     const columnData: unknown[][] = allFields.map((field) => data.map((row) => getNestedValue(row, field)));
 
     gridCoreRef.current.setData(columnData);
-  }, [data, columns, filterFields, wasmCoreReady]);
+  }, [data, normalizedColumns, filterFields, wasmCoreReady]);
 
   const getRowKey = useCallback(
     (row: T): string => {
@@ -482,7 +500,7 @@ export function DataGrid<T extends object>({
 
     // Set sort - find column index in ALL columns (matches setData order)
     if (sort.field && sort.direction) {
-      const allFields = columns.map((c) => String(c.field));
+      const allFields = normalizedColumns.map((c) => String(c.field));
       const sortColIndex = allFields.findIndex((f) => f === sort.field);
       if (sortColIndex >= 0) {
         gridCoreRef.current.setSort(sortColIndex, sort.direction);
@@ -494,7 +512,7 @@ export function DataGrid<T extends object>({
     }
 
     return gridCoreRef.current.getView();
-  }, [filter, sort, columns, wasmCoreReady, data.length]);
+  }, [filter, sort, normalizedColumns, wasmCoreReady, data.length]);
 
   // sortedData for non-virtualized mode (still needed for table rendering)
   // For virtualized mode, we use getRowAtIndex directly
@@ -506,7 +524,7 @@ export function DataGrid<T extends object>({
       return [] as T[];
     }
 
-    const fieldsToSearch = filterFields || columns.map((c) => c.field as keyof T);
+    const fieldsToSearch = filterFields || normalizedColumns.map((c) => c.field as keyof T);
     const hasFilter = filter.trim().length > 0;
     const hasSort = sort.field && sort.direction;
 
@@ -560,7 +578,7 @@ export function DataGrid<T extends object>({
     }
 
     return result;
-  }, [data, filter, filterFields, columns, sort, wasmCoreReady, wasmIndices, shouldVirtualize]);
+  }, [data, filter, filterFields, normalizedColumns, sort, wasmCoreReady, wasmIndices, shouldVirtualize]);
 
   // Build merged view: sortedData + leaving rows at their snapshot positions
   const mergedData = useMemo(() => {
@@ -590,7 +608,7 @@ export function DataGrid<T extends object>({
   }, [sortedData, rowExitDuration, leavingRowsVersion]);
 
   const flashColumns = useMemo(
-    () => columns.filter((col) => col.flashOnChange).map((col) => String(col.field)),
+    () => normalizedColumns.filter((col) => col.flashOnChange).map((col) => String(col.field)),
     [columns]
   );
 
@@ -765,7 +783,7 @@ export function DataGrid<T extends object>({
       return wasmIndices.length;
     }
 
-    const fieldsToSearch = filterFields || columns.map((c) => c.field as keyof T);
+    const fieldsToSearch = filterFields || normalizedColumns.map((c) => c.field as keyof T);
     const hasFilter = filter.trim().length > 0;
 
     if (!hasFilter) {
@@ -781,7 +799,7 @@ export function DataGrid<T extends object>({
         return String(value).toLowerCase().includes(lowerFilter);
       })
     ).length;
-  }, [data, filter, filterFields, columns, wasmCoreReady, wasmIndices]);
+  }, [data, filter, filterFields, normalizedColumns, wasmCoreReady, wasmIndices]);
 
   const handleSort = (field: string) => {
     setSort((prev) => {
