@@ -1185,12 +1185,7 @@ describe('DataGrid', () => {
 
     it('should not intercept Home/End keys from filter input', () => {
       const { container } = render(
-        <DataGrid
-          data={testData}
-          columns={columns}
-          rowKey="id"
-          showFilter={true}
-        />
+        <DataGrid data={testData} columns={columns} rowKey="id" showFilter={true} />
       );
 
       const filterInput = container.querySelector('input[type="text"]') as HTMLInputElement;
@@ -1212,14 +1207,9 @@ describe('DataGrid', () => {
 
     it('should not intercept Enter key from sortable header button', () => {
       const handleRowClick = vi.fn();
-      const sortableColumns = columns.map(col => ({ ...col, sortable: true }));
+      const sortableColumns = columns.map((col) => ({ ...col, sortable: true }));
       const { container } = render(
-        <DataGrid
-          data={testData}
-          columns={sortableColumns}
-          rowKey="id"
-          onRowClick={handleRowClick}
-        />
+        <DataGrid data={testData} columns={sortableColumns} rowKey="id" onRowClick={handleRowClick} />
       );
 
       // Navigate to a row first

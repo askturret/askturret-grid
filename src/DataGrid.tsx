@@ -467,7 +467,7 @@ export function DataGrid<T extends object>({
   // Keyboard navigation handler
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const totalRows = isSliceMode ? rowCount ?? 0 : mergedData.length;
+      const totalRows = isSliceMode ? (rowCount ?? 0) : mergedData.length;
       if (totalRows === 0) return;
 
       // Only handle keyboard events when:
@@ -618,7 +618,16 @@ export function DataGrid<T extends object>({
         </tr>
       );
     },
-    [orderedColumns, getRowKey, getCellFlashClass, onRowClick, updateFlashForRow, rowClass, focusedRowIndex, setFocusedRowIndex]
+    [
+      orderedColumns,
+      getRowKey,
+      getCellFlashClass,
+      onRowClick,
+      updateFlashForRow,
+      rowClass,
+      focusedRowIndex,
+      setFocusedRowIndex,
+    ]
   );
 
   // Render a virtualized row
