@@ -39,6 +39,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"demo/src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"demo/src/**/*.{ts,tsx,css}\"",
     "size": "size-limit",
+    "prepare": "husky",
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
@@ -58,8 +59,10 @@
     "@vitest/browser": "^2.1.0",
     "@vitest/coverage-v8": "^2.1.0",
     "axe-core": "^4.10.2",
+    "husky": "^9.1.0",
     "jest-axe": "^9.0.0",
     "jsdom": "^25.0.0",
+    "lint-staged": "^15.2.0",
     "playwright": "^1.48.0",
     "prettier": "^3.4.0",
     "react": "^18.3.0",
@@ -103,5 +106,8 @@
       "limit": "5 KB",
       "gzip": true
     }
-  ]
+  ],
+  "lint-staged": {
+    "*.{ts,tsx,css}": "prettier --write"
+  }
 }
