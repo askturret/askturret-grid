@@ -337,7 +337,21 @@ export function DataGrid<T extends object>({
 
   // R2: Parent orchestrates clearing leaving rows on sort change
   const handleSort = (field: string) => {
-    handleSortBase(field);
+    if (onSortChange) {
+      // Controlled mode - dispatch to callback
+      const currentField = sort?.field;
+      const currentDir = sort?.direction;
+      let newDir: 'asc' | 'desc' | null = 'asc';
+
+      if (currentField === field) {
+        newDir = currentDir === 'asc' ? 'desc' : currentDir === 'desc' ? null : 'asc';
+      }
+
+      onSortChange({ field: newDir ? field : null, direction: newDir });
+    } else {
+      // Uncontrolled mode - use internal state
+      handleSortBase(field);
+    }
     clearLeaving();
   };
 
@@ -590,7 +604,7 @@ export function DataGrid<T extends object>({
           <input
             type="text"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(e.target.value)}
             placeholder={filterPlaceholder}
           />
         </div>

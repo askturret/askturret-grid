@@ -44,6 +44,9 @@ export type { AdaptiveFlashResult } from './hooks/useAdaptiveFlash';
 export { useGridStore } from './hooks/useGridStore';
 export type { StoreType, UseGridStoreConfig, GridStoreResult } from './hooks/useGridStore';
 
+// Controlled mode helpers
+export { controlledBy } from './controlled';
+
 // WASM bridge (for direct access to sorting/filtering)
 export {
   initWasm,
