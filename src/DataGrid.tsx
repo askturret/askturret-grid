@@ -127,6 +127,27 @@ export interface DataGridProps<T> {
   /** Callback when columns are reordered */
   onColumnReorder?: (newOrder: string[]) => void;
 
+  // Controlled Filter/Sort (for external store integration)
+  /**
+   * Controlled filter value. When provided, DataGrid does not manage filter
+   * state internally and skips its own filter pass (trusts data as pre-filtered).
+   */
+  filter?: string;
+  /**
+   * Callback when filter input changes. Required if `filter` is provided and
+   * `showFilter` is true.
+   */
+  onFilterChange?: (filter: string) => void;
+  /**
+   * Controlled sort state. When provided, DataGrid does not manage sort state
+   * internally and skips its own sort pass (trusts data as pre-sorted).
+   */
+  sort?: { field: string | null; direction: 'asc' | 'desc' | null };
+  /**
+   * Callback when a sortable header is clicked. Required if `sort` is provided.
+   */
+  onSortChange?: (sort: { field: string | null; direction: 'asc' | 'desc' | null }) => void;
+
   // Row Exit Lifecycle
   /**
    * Dynamic row-level CSS class. Called for every rendered row, including
