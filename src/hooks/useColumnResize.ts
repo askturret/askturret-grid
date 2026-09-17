@@ -15,8 +15,8 @@ export interface UseColumnResizeParams<T> {
   minColumnWidth: number;
   maxColumnWidth: number;
   resizable: boolean;
-  parentRef: RefObject<HTMLDivElement>;
-  headerRef: RefObject<HTMLDivElement>;
+  parentRef: RefObject<HTMLDivElement | null>;
+  headerRef: RefObject<HTMLDivElement | null>;
 }
 
 export interface UseColumnResizeReturn<T> {
