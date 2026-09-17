@@ -24,6 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: npm audit (non-blocking)
+        run: npm audit --audit-level=high --omit=dev || true
+        continue-on-error: true
+
       - name: Format check
         run: npm run format:check
 
@@ -204,6 +208,12 @@ jobs:
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Cargo audit
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          working-directory: wasm
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run cargo test
         working-directory: wasm
