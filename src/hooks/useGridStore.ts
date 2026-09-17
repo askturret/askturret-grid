@@ -25,17 +25,18 @@
  * ```
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { WorkerGridStore } from '../wasm/WorkerGridStore';
 import { WasmGridStore, type ColumnSchema, type SortDirection } from '../wasm/WasmGridStore';
+import { type GridColumn, toColumnSchema } from '../columns';
 
 export type StoreType = 'worker' | 'wasm' | 'js';
 
 export interface UseGridStoreConfig<T> {
   /** Store implementation to use */
   storeType: StoreType;
-  /** Schema describing columns (required for worker/wasm) */
-  schema: ColumnSchema[];
+  /** Schema describing columns - accepts legacy ColumnSchema or unified GridColumn */
+  schema: ColumnSchema[] | GridColumn<T>[];
   /** Initial data to load */
   initialData?: T[];
   /** Batch interval for worker store (default: 16ms for ~60fps) */
@@ -204,6 +205,23 @@ export function useGridStore<T extends Record<string, unknown>>(
 ): GridStoreResult<T> {
   const { storeType, schema, initialData, batchInterval = 16, visibleRowCount = 50 } = config;
 
+  // R1: Runtime shape discrimination - normalize GridColumn[] to ColumnSchema[]
+  // GridColumn has 'header' (presentation), ColumnSchema has 'type' only
+  const normalizedSchema: ColumnSchema[] = useMemo(() => {
+    if (schema.length === 0) return [];
+
+    const firstCol = schema[0];
+    const isGridColumn = 'header' in firstCol;
+
+    if (isGridColumn) {
+      // Convert GridColumn[] to ColumnSchema[] (throws if missing 'type' or has nested 'path')
+      return (schema as GridColumn<T>[]).map(toColumnSchema);
+    }
+
+    // Already ColumnSchema[], use as-is
+    return schema as ColumnSchema[];
+  }, [schema]);
+
   const [isReady, setIsReady] = useState(false);
   const [data, setData] = useState<T[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -222,7 +240,7 @@ export function useGridStore<T extends Record<string, unknown>>(
       try {
         switch (storeType) {
           case 'worker': {
-            const store = await WorkerGridStore.create<T>(schema, { batchInterval });
+            const store = await WorkerGridStore.create<T>(normalizedSchema, { batchInterval });
             if (!mounted) {
               store.dispose();
               return;
@@ -249,7 +267,7 @@ export function useGridStore<T extends Record<string, unknown>>(
           }
 
           case 'wasm': {
-            const store = await WasmGridStore.create<T>(schema);
+            const store = await WasmGridStore.create<T>(normalizedSchema);
             if (!mounted) {
               store.dispose();
               return;
@@ -275,7 +293,7 @@ export function useGridStore<T extends Record<string, unknown>>(
 
           case 'js':
           default: {
-            const store = new JsGridStore<T>(schema);
+            const store = new JsGridStore<T>(normalizedSchema);
             jsStoreRef.current = store;
 
             // Load initial data
