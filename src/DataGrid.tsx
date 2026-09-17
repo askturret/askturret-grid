@@ -610,7 +610,7 @@ export function DataGrid<T extends object>({
 
   const flashColumns = useMemo(
     () => normalizedColumns.filter((col) => col.flashOnChange).map((col) => String(col.field)),
-    [columns]
+    [normalizedColumns]
   );
 
   // Flash detection now happens lazily during render (see updateFlashForRow)
