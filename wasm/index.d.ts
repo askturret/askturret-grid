@@ -24,24 +24,6 @@ export enum SortDir {
 }
 
 /**
- * Sort direction constants (legacy API)
- */
-export const SortDirection: {
-  Asc: 0;
-  Desc: 1;
-};
-
-/**
- * Filter mode constants
- */
-export const FilterMode: {
-  Contains: 0;
-  Equals: 1;
-  StartsWith: 2;
-  EndsWith: 3;
-};
-
-/**
  * Column schema definition
  */
 export interface ColumnSchema {
@@ -59,42 +41,6 @@ export interface WasmIndexResult {
   readonly len: number;
   free?(): void;
 }
-
-/**
- * Grid state interface (legacy API)
- */
-export interface WasmGridState {
-  set_data(columns: unknown[][]): void;
-  set_sort(col: number, direction: number): void;
-  set_filter(search: string): void;
-  get_view(): Uint32Array;
-  get_view_count(): number;
-  row_count(): number;
-  col_count(): number;
-}
-
-/**
- * Indexed grid state interface (legacy API)
- */
-export interface WasmIndexedGridState {
-  set_data(columns: unknown[][]): void;
-  set_sort(col: number, direction: number): void;
-  set_filter(search: string): void;
-  get_view(): Uint32Array;
-  get_view_count(): number;
-  row_count(): number;
-  col_count(): number;
-}
-
-/**
- * GridState class (legacy API - may not be available in all builds)
- */
-export const GridState: (new () => WasmGridState) | undefined;
-
-/**
- * IndexedGridState class (legacy API - may not be available in all builds)
- */
-export const IndexedGridState: (new () => WasmIndexedGridState) | undefined;
 
 /**
  * High-performance grid data store with WASM acceleration
@@ -216,52 +162,6 @@ export class GridStore {
   free(): void;
 }
 
-/**
- * Trigram index for fast text search
- */
-export const TrigramIndex: (new (values: unknown[]) => {
-  search(query: string): WasmIndexResult;
-  len(): number;
-}) | undefined;
-
-// ============================================================================
-// Sorting and filtering functions (may not be available in all builds)
-// ============================================================================
-
-/**
- * Sort numeric values
- * @param values Array of numbers
- * @param direction Sort direction (0 = Asc, 1 = Desc)
- * @returns Index result
- */
-export function sort_numbers(values: Float64Array, direction: number): WasmIndexResult;
-
-/**
- * Sort string values
- * @param values Array of strings
- * @param direction Sort direction (0 = Asc, 1 = Desc)
- * @returns Index result
- */
-export function sort_strings(values: unknown[], direction: number): WasmIndexResult;
-
-/**
- * Filter string values
- * @param values Array of strings
- * @param search Search query
- * @param mode Filter mode (0 = Contains, 1 = Equals, 2 = StartsWith, 3 = EndsWith)
- * @returns Index result
- */
-export function filter_strings(values: unknown[], search: string, mode: number): WasmIndexResult;
-
-/**
- * Filter numeric range
- * @param values Array of numbers
- * @param min Minimum value
- * @param max Maximum value
- * @returns Index result
- */
-export function filter_range(values: Float64Array, min: number, max: number): WasmIndexResult;
-
 // ============================================================================
 // Benchmark functions
 // ============================================================================
@@ -301,74 +201,3 @@ export function bench_intersect_heavy_filter(count: number): number;
  * @returns Time in milliseconds
  */
 export function bench_row_matching(count: number): number;
-
-/**
- * Benchmark: GridState operations (legacy API)
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_grid_state(count: number): number;
-
-/**
- * Benchmark: Filter only (legacy API)
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_filter_only(count: number): number;
-
-/**
- * Benchmark: Sort only (legacy API)
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_sort_only(count: number): number;
-
-/**
- * Benchmark: Indexed filter with build (legacy API)
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_indexed_filter_with_build(count: number): number;
-
-/**
- * Benchmark: Indexed filter only (legacy API)
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_indexed_filter_only(count: number): number;
-
-/**
- * Benchmark: Scan filter (legacy API)
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_scan_filter(count: number): number;
-
-/**
- * Benchmark: Repeated filter (legacy API)
- * @param count Number of rows
- * @param iterations Number of iterations
- * @returns Time in milliseconds
- */
-export function bench_repeated_filter(count: number, iterations: number): number;
-
-/**
- * Benchmark: Sort performance
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_sort(count: number): number;
-
-/**
- * Benchmark: Filter performance
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_filter(count: number): number;
-
-/**
- * Benchmark: Trigram search performance
- * @param count Number of rows
- * @returns Time in milliseconds
- */
-export function bench_trigram(count: number): number;
