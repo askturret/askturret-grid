@@ -148,6 +148,37 @@ export interface DataGridProps<T> {
    */
   onSortChange?: (sort: { field: string | null; direction: 'asc' | 'desc' | null }) => void;
 
+  // Viewport (for worker store controlled mode)
+  /**
+   * Total row count for virtualizer sizing when `data` is a viewport SLICE
+   * of a larger view (worker-store controlled mode). When provided, the
+   * virtualizer scrolls over `rowCount` rows rather than `data.length`.
+   * Requires `virtualize: true` (or 'auto' with rowCount > threshold).
+   */
+  rowCount?: number;
+  /**
+   * The absolute index of `data[0]` in the full view. Together with
+   * `rowCount`, this tells DataGrid that `data[i]` represents view row
+   * `viewportStart + i`. Rows outside `[viewportStart, viewportStart + data.length)`
+   * render as placeholders until `onViewportChange` produces a slice covering them.
+   */
+  viewportStart?: number;
+  /**
+   * Called when the virtualizer's rendered range changes. The consumer is
+   * expected to dispatch this to the store's `setViewport(start, end)`.
+   * Called at MOST once per scroll frame — DataGrid coalesces internally.
+   * Required whenever `rowCount > data.length`; otherwise scrolling past
+   * the initial slice will render permanent placeholders.
+   */
+  onViewportChange?: (start: number, end: number) => void;
+  /**
+   * Custom placeholder renderer for viewport-relative out-of-range rows.
+   * Called with the ABSOLUTE view index. Defaults to an empty row with
+   * class `askturret-grid-row-placeholder` — consumers can style a
+   * skeleton/shimmer via CSS without providing this prop.
+   */
+  renderPlaceholderRow?: (index: number) => React.ReactNode;
+
   // Row Exit Lifecycle
   /**
    * Dynamic row-level CSS class. Called for every rendered row, including
@@ -207,6 +238,11 @@ export function DataGrid<T extends object>({
   onFilterChange,
   sort: controlledSort,
   onSortChange,
+  // Viewport (worker store controlled mode)
+  rowCount,
+  viewportStart,
+  onViewportChange,
+  renderPlaceholderRow,
   // Row exit lifecycle
   rowClass,
   rowExitDuration = 0,
@@ -374,6 +410,8 @@ export function DataGrid<T extends object>({
     wasmIndices,
     shouldVirtualize,
     passthrough: !!onFilterChange || !!onSortChange,
+    rowCount,
+    viewportStart,
   });
 
   // Row-exit lifecycle (leaving rows + cleanup)
