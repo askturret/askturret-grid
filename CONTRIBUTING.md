@@ -1,90 +1,97 @@
-# Contributing to @askturret/grid
+# Contributing to AskTurret Grid
 
-Thank you for your interest in contributing! This document outlines the process for contributing to the project.
-
-## Governance Model
-
-This project follows a **Maintainer** governance model:
-
-### Roles
-
-| Role | Description | Permissions |
-|------|-------------|-------------|
-| **Maintainers** | Core team with commit access | Merge PRs, manage releases, set direction |
-| **Contributors** | Anyone who submits PRs | Submit PRs, participate in discussions |
-| **Community** | Users and supporters | Open issues, provide feedback, use the library |
-
-### Current Maintainers
-
-- [@alprimak](https://github.com/alprimak) - Project Lead
-
-### Becoming a Maintainer
-
-Contributors who demonstrate:
-- Sustained, high-quality contributions
-- Understanding of the codebase and project goals
-- Constructive participation in discussions
-
-May be invited to join as maintainers.
-
-## How to Contribute
-
-### Reporting Issues
-
-- Search existing issues first to avoid duplicates
-- Use issue templates when available
-- Include reproduction steps, expected vs actual behavior
-- For performance issues, include benchmarks if possible
-
-### Pull Requests
-
-1. **Fork** the repository
-2. **Create a branch** from `main` for your changes
-3. **Make your changes** with clear, focused commits
-4. **Add tests** for new functionality
-5. **Run tests** locally: `npm run test:run`
-6. **Submit a PR** with a clear description
-
-### PR Guidelines
-
-- Keep PRs focused - one feature/fix per PR
-- Follow existing code style
-- Update documentation if needed
-- Add tests for new features
-- Ensure all tests pass
-
-### Code Style
-
-- TypeScript with strict mode
-- Prettier for formatting (run `npm run format`)
-- Meaningful variable/function names
-- Comments for complex logic only
+Thank you for your interest in contributing! This document provides guidelines for development setup and contributions.
 
 ## Development Setup
 
+### Prerequisites
+
+- Node.js 20.x or later
+- npm 10.x or later
+
+### Initial Setup
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+   This will automatically set up Git hooks via Husky.
+
+3. Build the package:
+   ```bash
+   npm run build
+   ```
+
+## Git Hooks
+
+This project uses [Husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/lint-staged/lint-staged) to automatically format code before commits.
+
+### Pre-commit Hook
+
+When you commit changes, the pre-commit hook will:
+- Run Prettier on staged `.ts`, `.tsx`, and `.css` files
+- Automatically format and re-stage the files
+- Only process files you've actually changed (fast, typically < 2 seconds)
+
+This prevents formatting issues from being caught late in CI, saving round-trip time.
+
+### Manual Formatting
+
+You can also format files manually:
+
 ```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/askturret-grid.git
-cd askturret-grid
+# Format all source files
+npm run format
 
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Run tests
-npm run test:run
-
-# Run demo
-npm run demo
+# Check formatting without making changes
+npm run format:check
 ```
 
-## Questions?
+## Testing
 
-- Open a [Discussion](https://github.com/alprimak/askturret-grid/discussions) for questions
-- Open an [Issue](https://github.com/alprimak/askturret-grid/issues) for bugs/features
+```bash
+# Run tests in watch mode
+npm test
+
+# Run all tests once
+npm run test:run
+
+# Run cross-browser tests (Firefox)
+npm run test:browser
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+## Code Style
+
+- TypeScript for all source code
+- Prettier for formatting (configured in `.prettierrc`)
+- Single quotes, 2-space indentation, 110-character line width
+- The pre-commit hook ensures consistency automatically
+
+## Pull Request Process
+
+1. Create a feature branch from `main`
+2. Make your changes
+3. Ensure tests pass: `npm run test:run`
+4. Ensure types check: `npm run lint`
+5. The pre-commit hook will format your code automatically
+6. Push your branch and create a pull request
+7. Wait for CI checks to pass (formatting, tests, bundle size)
+
+## Bundle Size
+
+This project enforces bundle size limits via `size-limit`:
+- Main bundle (JS): 30 KB gzipped
+- Styles (CSS): 5 KB gzipped
+
+Check bundle size locally:
+```bash
+npm run size
+```
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the Apache-2.0 License.
