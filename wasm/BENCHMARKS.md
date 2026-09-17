@@ -4,6 +4,8 @@
 
 This directory contains performance benchmarks for the WASM trigram filter optimizations.
 
+**See also:** [Live Interactive Benchmarks](https://grid.askturret.com/benchmarks/) — Run benchmarks for your scenario in the browser, comparing Worker/WASM/JS engines.
+
 ## Benchmarks
 
 ### 1. `bench_intersect_heavy_filter`
@@ -84,3 +86,15 @@ not absolute performance.
 - **Before**: `text.to_lowercase().contains(filter)` (allocates String per row)
 - **After**: Iterator-based with ASCII fast path
 - **Benefit**: Minimal allocation for ASCII, proper Unicode handling for non-ASCII
+
+## Architecture Alignment
+
+The implementation in `src/lib.rs` has evolved from the design documented in `ARCHITECTURE.md`. Notable differences:
+
+1. **`ColumnData` type support**: Implementation currently supports `Strings` and `Numbers`, while ARCHITECTURE.md documents an additional `Integers(Vec<i64>)` variant that hasn't been implemented.
+
+2. **Trigram index key type**: Implementation uses `HashMap<String, Vec<u32>>` (String keys) instead of the documented `HashMap<[u8; 3], Vec<u32>>` (byte-array keys). This provides better Unicode support for CJK and emoji content.
+
+3. **ViewState caching**: Implementation uses a single `cached_view` field instead of the documented separate `filtered_rows`/`sorted_indices` caches with `filter_dirty`/`sort_dirty` flags. The simplified approach is functionally equivalent.
+
+These differences reflect implementation decisions made during development and don't affect the documented API or performance characteristics.
