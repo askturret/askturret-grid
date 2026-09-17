@@ -1,8 +1,8 @@
 {
   "name": "@askturret/grid-wasm",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "High-performance WASM acceleration for @askturret/grid - sorting, filtering, and trigram indexing",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "AskTurret",
   "repository": {
     "type": "git",

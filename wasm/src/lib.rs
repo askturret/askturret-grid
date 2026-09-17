@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Object, Reflect, Uint32Array};
 use std::collections::HashMap;
