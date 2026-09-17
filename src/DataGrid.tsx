@@ -241,6 +241,7 @@ export function DataGrid<T extends object>({
 
   // Dev warnings for controlled/uncontrolled mode (R2, R3, R5)
   useEffect(() => {
+    // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
 
     // R2: Warn when controlled prop is set without callback
@@ -264,6 +265,7 @@ export function DataGrid<T extends object>({
   const prevSortControlled = useRef(controlledSort !== undefined);
 
   useEffect(() => {
+    // @ts-expect-error - process.env.NODE_ENV is defined by bundler at build time
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') return;
 
     const nowFilterControlled = controlledFilter !== undefined;
