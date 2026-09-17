@@ -26,8 +26,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        working-directory: wasm
+        run: wasm-pack build --target web --out-dir pkg --release
+
       - name: Build package
         run: npm run build
+
+      - name: Check WASM size
+        run: node scripts/check-wasm-size.mjs
 
       - name: Report bundle size
         uses: andresz1/size-limit-action@v1

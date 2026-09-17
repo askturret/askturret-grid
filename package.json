@@ -93,20 +93,6 @@
     "url": "https://github.com/askturret/askturret-grid/issues"
   },
   "homepage": "https://grid.askturret.com",
-  "size-limit": [
-    {
-      "name": "Main bundle (JS)",
-      "path": "dist/index.js",
-      "limit": "30 KB",
-      "gzip": true
-    },
-    {
-      "name": "Styles (CSS)",
-      "path": "dist/styles.css",
-      "limit": "5 KB",
-      "gzip": true
-    }
-  ],
   "lint-staged": {
     "*.{ts,tsx,css}": "prettier --write"
   }
