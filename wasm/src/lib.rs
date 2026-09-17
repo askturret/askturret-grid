@@ -751,24 +751,68 @@ impl GridStore {
         false
     }
 
-    /// Case-insensitive substring search without allocating
+    /// Case-insensitive substring search with minimal allocation
     /// filter MUST already be lowercased
+    ///
+    /// Uses ASCII fast path for common case (trading/finance data is typically ASCII-heavy),
+    /// falls back to full Unicode char-by-char comparison only when needed.
     fn contains_case_insensitive(text: &str, filter: &str) -> bool {
         if filter.is_empty() {
             return true;
         }
 
-        let text_chars: Vec<char> = text.chars().flat_map(|c| c.to_lowercase()).collect();
-        let filter_chars: Vec<char> = filter.chars().collect();
+        // Fast path: both strings are ASCII - use byte-level comparison
+        if text.is_ascii() && filter.is_ascii() {
+            // ASCII lowercase comparison via bytes - zero allocation
+            let text_bytes = text.as_bytes();
+            let filter_bytes = filter.as_bytes();
 
-        if text_chars.len() < filter_chars.len() {
-            return false;
+            if text_bytes.len() < filter_bytes.len() {
+                return false;
+            }
+
+            return text_bytes.windows(filter_bytes.len()).any(|window| {
+                window.iter().zip(filter_bytes.iter()).all(|(t, f)| {
+                    t.to_ascii_lowercase() == *f
+                })
+            });
         }
 
-        // Sliding window search
-        text_chars
-            .windows(filter_chars.len())
-            .any(|window| window == filter_chars.as_slice())
+        // Slow path: non-ASCII text requires proper Unicode handling
+        // Collect filter chars once (not per row) - caller should cache this, but we can't change API
+        let filter_chars: Vec<char> = filter.chars().collect();
+
+        // Iterator-based approach to avoid allocating full text_chars vec
+        // Collect lowercased chars only as we scan
+        let mut text_iter = text.chars().flat_map(|c| c.to_lowercase()).peekable();
+
+        // Try to match filter at each position
+        loop {
+            // Clone iterator to try matching from current position
+            let mut candidate = text_iter.clone();
+            let mut matched = true;
+
+            for &filter_char in &filter_chars {
+                match candidate.next() {
+                    Some(text_char) if text_char == filter_char => continue,
+                    _ => {
+                        matched = false;
+                        break;
+                    }
+                }
+            }
+
+            if matched {
+                return true;
+            }
+
+            // Advance to next position
+            if text_iter.next().is_none() {
+                break;
+            }
+        }
+
+        false
     }
 }
 
