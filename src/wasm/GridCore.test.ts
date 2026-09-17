@@ -208,6 +208,115 @@ describe('GridCore', () => {
     });
   });
 
+  describe('setFilter with non-ASCII text (Unicode correctness)', () => {
+    it('filters CJK (Chinese) text correctly', () => {
+      core.setData([
+        ['张三', '李四', '王五', 'Alice'], // Chinese names + English
+        ['北京', '上海', '广州', 'New York'],
+      ]);
+
+      // Filter by Chinese character
+      core.setFilter('张');
+      expect(core.getView()).toEqual([0]); // Matches '张三'
+
+      core.setFilter('上海');
+      expect(core.getView()).toEqual([1]); // Matches '上海' in column 1
+
+      // Mixed CJK and Latin should work
+      core.setFilter('Alice');
+      expect(core.getView()).toEqual([3]);
+    });
+
+    it('filters RTL (Arabic/Hebrew) text correctly', () => {
+      core.setData([
+        ['مرحبا', 'שלום', 'Hello'], // Arabic, Hebrew, English
+        ['القاهرة', 'תל אביב', 'London'],
+      ]);
+
+      // Filter by Arabic text
+      core.setFilter('مرحبا');
+      expect(core.getView()).toEqual([0]);
+
+      // Filter by Hebrew text
+      core.setFilter('שלום');
+      expect(core.getView()).toEqual([1]);
+
+      // Filter by substring in RTL text
+      core.setFilter('قاهرة');
+      expect(core.getView()).toEqual([0]); // Matches 'القاهرة'
+    });
+
+    it('filters emoji correctly', () => {
+      core.setData([
+        ['Hello 👋', 'World 🌍', 'Test 🧪'],
+        ['😀😃😄', '🎉🎊🎈', 'Party time'],
+      ]);
+
+      // Filter by emoji
+      core.setFilter('👋');
+      expect(core.getView()).toEqual([0]);
+
+      core.setFilter('🌍');
+      expect(core.getView()).toEqual([1]);
+
+      // Filter by multiple emoji sequence
+      core.setFilter('😀😃');
+      expect(core.getView()).toEqual([0]); // Matches '😀😃😄'
+    });
+
+    it('handles mixed multi-byte and ASCII characters', () => {
+      core.setData([
+        ['café', 'naïve', 'résumé'], // Latin with diacritics
+        ['München', 'Zürich', 'Berlin'],
+        ['café', 'naïve', 'résumé'], // Duplicate row for testing
+      ]);
+
+      // Filter by accented character
+      core.setFilter('café');
+      expect(core.getView()).toEqual([0, 2]); // Both rows with 'café'
+
+      core.setFilter('ü');
+      expect(core.getView()).toEqual([1]); // Matches 'München' and 'Zürich'
+
+      core.setFilter('résumé');
+      expect(core.getView()).toEqual([2]); // Row 2 has 'résumé' in column 2
+    });
+
+    it('case-insensitive filtering works for non-ASCII', () => {
+      core.setData([
+        ['Café', 'CAFÉ', 'café'],
+        ['MÜNCHEN', 'München', 'münchen'],
+      ]);
+
+      // Lowercase query should match all cases
+      core.setFilter('café');
+      expect(core.getView()).toEqual([0]); // All three variants in row 0
+
+      core.setFilter('münchen');
+      expect(core.getView()).toEqual([1]); // All three variants in row 1
+    });
+
+    it('handles empty filter with non-ASCII data', () => {
+      core.setData([
+        ['张三', 'مرحبا', '😀'],
+        ['李四', 'שלום', '🌍'],
+      ]);
+
+      core.setFilter('');
+      expect(core.getView()).toEqual([0, 1]); // All rows
+    });
+
+    it('handles no matches for non-ASCII query', () => {
+      core.setData([
+        ['Alice', 'Bob'],
+        ['Charlie', 'David'],
+      ]);
+
+      core.setFilter('张三'); // Chinese text not in ASCII data
+      expect(core.getView()).toEqual([]);
+    });
+  });
+
   describe('combined sort and filter', () => {
     beforeEach(() => {
       core.setData([

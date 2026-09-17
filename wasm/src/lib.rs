@@ -94,8 +94,8 @@ struct Column {
 // ============================================================================
 
 struct TrigramIndex {
-    // trigram (3 bytes) -> set of row indices
-    index: HashMap<[u8; 3], HashSet<u32>>,
+    // trigram (3 Unicode code points) -> set of row indices
+    index: HashMap<String, HashSet<u32>>,
 }
 
 impl TrigramIndex {
@@ -105,14 +105,20 @@ impl TrigramIndex {
         }
     }
 
-    fn generate_trigrams(text: &str) -> Vec<[u8; 3]> {
+    fn generate_trigrams(text: &str) -> Vec<String> {
         let lower = text.to_lowercase();
-        let bytes = lower.as_bytes();
-        if bytes.len() < 3 {
+        let chars: Vec<char> = lower.chars().collect();
+        if chars.len() < 3 {
             return vec![];
         }
-        (0..bytes.len() - 2)
-            .map(|i| [bytes[i], bytes[i + 1], bytes[i + 2]])
+        (0..chars.len() - 2)
+            .map(|i| {
+                let mut s = String::with_capacity(12); // Max 3 chars * 4 bytes each
+                s.push(chars[i]);
+                s.push(chars[i + 1]);
+                s.push(chars[i + 2]);
+                s
+            })
             .collect()
     }
 
