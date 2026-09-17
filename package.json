@@ -109,9 +109,7 @@
     {
       "name": "WASM binary",
       "path": "wasm/pkg/askturret_grid_wasm_bg.wasm",
-      "limit": "60 KB",
-      "gzip": true,
-      "webpack": false
+      "limit": "60 KB"
     }
   ],
   "lint-staged": {
