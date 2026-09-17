@@ -27,7 +27,7 @@ describe('useSortedData', () => {
   const defaultParams = {
     data: mockData,
     filter: '',
-    filterFields: ['name' as keyof typeof mockData[0]],
+    filterFields: ['name' as keyof (typeof mockData)[0]],
     columns: defaultColumns,
     sort: { field: null, direction: null },
     wasmCoreReady: false,
@@ -297,7 +297,7 @@ describe('useSortedData', () => {
       useSortedData({
         ...defaultParams,
         filter: '30',
-        filterFields: ['age' as keyof typeof mockData[0]],
+        filterFields: ['age' as keyof (typeof mockData)[0]],
       })
     );
 

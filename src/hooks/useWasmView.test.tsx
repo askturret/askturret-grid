@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+import React from 'react';
 import { useWasmView } from './useWasmView';
 import { GridCore } from '../wasm/GridCore';
 
@@ -249,20 +250,17 @@ describe('useWasmView', () => {
   });
 
   it('R1: handles strict-mode double-invocation (side effects in useMemo are idempotent)', async () => {
-    const { result } = renderHook(() => useWasmView({ ...defaultParams, shouldUseWasmCore: true }));
+    const { result } = renderHook(() => useWasmView({ ...defaultParams, shouldUseWasmCore: true }), {
+      wrapper: ({ children }) => <React.StrictMode>{children}</React.StrictMode>,
+    });
 
     // Wait for init
     await waitFor(() => {
       expect(result.current.wasmCoreReady).toBe(true);
     });
 
-    // Simulate strict-mode by calling getView multiple times
-    const firstCall = mockGridCore.getView.mock.calls.length;
-
-    // Force a re-render with same props (simulating strict mode)
-    result.current.wasmIndices; // Access to trigger useMemo
-
-    // In strict mode, useMemo might be called twice, but results should be consistent
+    // In StrictMode, React will double-invoke hooks during development
+    // The side effects in useMemo (setFilter/setSort) should be idempotent
     expect(mockGridCore.getView).toHaveBeenCalled();
     expect(result.current.wasmIndices).toEqual([0, 1, 2]);
   });
