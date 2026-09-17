@@ -83,23 +83,26 @@ The WASM store features work seamlessly in client components:
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DataGrid, initWasmStore, type ColumnSchema } from '@askturret/grid';
+import { WasmGridStore, type ColumnSchema } from '@askturret/grid';
 
 export default function WasmGridPage() {
-  const [store, setStore] = useState(null);
+  const [store, setStore] = useState<WasmGridStore | null>(null);
+  const [visibleRows, setVisibleRows] = useState([]);
 
   useEffect(() => {
     const schema: ColumnSchema[] = [
-      { field: 'name', type: 'string' },
-      { field: 'value', type: 'number' },
+      { name: 'id', type: 'string', primaryKey: true },
+      { name: 'name', type: 'string' },
+      { name: 'value', type: 'number' },
     ];
 
-    initWasmStore(schema, { initialData: [] }).then(setStore);
+    WasmGridStore.create(schema).then(setStore);
   }, []);
 
   if (!store) return <div>Loading...</div>;
 
-  return <DataGrid data={store.getData()} columns={columns} rowKey="id" />;
+  const visible = store.getVisibleRows(0, 50);
+  return <DataGrid data={visible} columns={columns} rowKey="id" />;
 }
 ```
 
@@ -111,14 +114,20 @@ For high-frequency updates, the Worker store also requires client-side rendering
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DataGrid, WorkerGridStore } from '@askturret/grid';
+import { WorkerGridStore, type ColumnSchema } from '@askturret/grid';
 
 export default function WorkerGridPage() {
-  const [store, setStore] = useState(null);
+  const [store, setStore] = useState<WorkerGridStore | null>(null);
 
   useEffect(() => {
-    WorkerGridStore.create(schema, { batchMs: 16 }).then(setStore);
-    return () => store?.destroy();
+    const schema: ColumnSchema[] = [
+      { name: 'id', type: 'string', primaryKey: true },
+      { name: 'symbol', type: 'string', indexed: true },
+      { name: 'price', type: 'number' },
+    ];
+
+    WorkerGridStore.create(schema, { batchInterval: 16 }).then(setStore);
+    return () => store?.dispose();
   }, []);
 
   // Your component code
