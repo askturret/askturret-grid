@@ -2,10 +2,14 @@
  * WorkerGridStore - Web Worker-based grid store for non-blocking updates
  *
  * Architecture:
- * - WASM GridStore runs in a Web Worker (off main thread)
+ * - JavaScript engine runs in a Web Worker (off main thread)
  * - Updates are batched and processed at ~60fps
  * - Only visible rows are sent to main thread for rendering
  * - Main thread stays responsive even with millions of updates
+ *
+ * Note: This uses a JS engine in the worker, not WASM. The benefit is
+ * non-blocking main thread with batched updates. For WASM performance,
+ * use WasmGridStore (runs on main thread).
  *
  * Usage:
  * ```ts
@@ -74,7 +78,7 @@ type WorkerResponse =
   | { type: 'error'; message: string };
 
 // Worker code as inline string (for bundler compatibility)
-// Uses JS fallback since blob URL workers can't do dynamic imports
+// Uses JS engine (not WASM) since blob URL workers can't do dynamic imports
 const WORKER_CODE = `
 // Worker-side GridStore (JS implementation for blob URL compatibility)
 // The key benefit is non-blocking main thread, not WASM speed
@@ -84,7 +88,11 @@ class JsGridStore {
     this.schema = schema;
     this.data = [];
     this.idMap = new Map();
-    this.idColumn = schema.findIndex(c => c.primaryKey) || 0;
+    const pkIndex = schema.findIndex(c => c.primaryKey);
+    if (pkIndex < 0) {
+      throw new Error('WorkerGridStore requires exactly one column with primaryKey: true');
+    }
+    this.idColumn = pkIndex;
     this.indexedColumns = schema.filter(c => c.indexed).map(c => c.name);
     this.filterText = '';
     this.sortColumn = null;
@@ -391,7 +399,7 @@ export class WorkerGridStore<T extends Record<string, unknown> = Record<string, 
     const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(blob);
 
-    this.worker = new Worker(workerUrl, { type: 'module' });
+    this.worker = new Worker(workerUrl, { type: 'classic' });
     URL.revokeObjectURL(workerUrl);
 
     // Set up message handler

@@ -83,6 +83,6 @@ export {
   type SortDirection as WasmSortDirection,
 } from './wasm/WasmGridStore';
 
-// WorkerGridStore - Web Worker + WASM for non-blocking updates
+// WorkerGridStore - Web Worker + JS engine for non-blocking updates
 // Best for high-frequency trading updates (batches at 60fps, off main thread)
 export { WorkerGridStore, type WorkerGridStoreConfig, type ViewportInfo } from './wasm/WorkerGridStore';
