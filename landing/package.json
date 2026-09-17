@@ -13,7 +13,7 @@
     "start": "npx serve dist -l $PORT"
   },
   "dependencies": {
-    "@askturret/grid": "^0.1.2",
+    "@askturret/grid": "0.2.1",
     "@askturret/grid-wasm": "^0.2.0",
     "@astrojs/react": "^4.4.2",
     "@astrojs/starlight": "^0.37.2",
