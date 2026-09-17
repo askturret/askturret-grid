@@ -1,4 +1,4 @@
-export default [
+module.exports = [
   {
     name: 'Main bundle (JS)',
     path: 'dist/index.js',
@@ -15,7 +15,5 @@ export default [
     name: 'WASM binary',
     path: 'wasm/pkg/askturret_grid_wasm_bg.wasm',
     limit: '100 KB',
-    // Use @size-limit/file plugin (no bundling - just measure file size)
-    import: false,
   },
 ];
