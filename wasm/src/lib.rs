@@ -1202,18 +1202,20 @@ mod tests {
         // Add rows with overlapping text
         index.add(0, "hello world");
         index.add(1, "hello there");
-        index.add(2, "world hello");
+        index.add(2, "say hello world today");  // Contains "hello world" substring
         index.add(3, "goodbye world");
 
-        // Multi-trigram query "hello world" should only match rows 0 and 2
-        // (both contain all trigrams from "hello world")
+        // Multi-trigram query "hello world" should match rows 0 and 2
+        // Row 0: exact match
+        // Row 2: contains "hello world" as substring
+        // Row 1: has "hello" but not "world"
+        // Row 3: has "world" but not "hello"
         let results = index.search("hello world");
 
-        // Results should contain rows that have ALL trigrams
-        assert!(results.contains(&0));
-        assert!(results.contains(&2));
-        // Row 1 has "hello" but not "world", row 3 has "world" but not "hello"
-        assert_eq!(results.len(), 2);
+        // Results should contain rows that have ALL trigrams from "hello world"
+        assert!(results.contains(&0), "Row 0 should match (exact)");
+        assert!(results.contains(&2), "Row 2 should match (contains substring)");
+        assert_eq!(results.len(), 2, "Should match exactly 2 rows");
     }
 
     #[test]
