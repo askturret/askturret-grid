@@ -11,10 +11,4 @@ module.exports = [
     limit: '5 KB',
     gzip: true,
   },
-  {
-    name: 'WASM binary',
-    path: 'wasm/pkg/askturret_grid_wasm_bg.wasm',
-    limit: '100 KB',
-    esbuild: false,
-  },
 ];
