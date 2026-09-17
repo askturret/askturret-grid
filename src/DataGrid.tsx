@@ -363,6 +363,7 @@ export function DataGrid<T extends object>({
   );
 
   // Sorted/filtered data (pure derivation)
+  // Passthrough when controlled-by-store: data is already filtered/sorted by the engine
   const { sortedData, visibleCount, getRowAtIndex } = useSortedData({
     data,
     filter,
@@ -372,6 +373,7 @@ export function DataGrid<T extends object>({
     wasmCoreReady,
     wasmIndices,
     shouldVirtualize,
+    passthrough: !!onFilterChange || !!onSortChange,
   });
 
   // Row-exit lifecycle (leaving rows + cleanup)
